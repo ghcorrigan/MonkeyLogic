@@ -22,6 +22,8 @@ while ~isrunning(ai), end
 toc
 while ~ai.SamplesAvailable, end
 toc
+flushdata(ai);
+tic;
 while toc < 1
     c = c + 1;
     t(c) = toc;

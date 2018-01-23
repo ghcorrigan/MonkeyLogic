@@ -115,11 +115,11 @@ end
                     mglsetorigin(Screen.JoystickCursor,Screen.SubjectScreenHalfSize + MLConfig.PixelsPerDegree.*aidata.Joystick(last_sample,:));
                 end
                 if ~isempty(aidata.Mouse)
-                    touch = aidata.Mouse(first_sample:last_sample,:);
-                    xy = touch(any(touch(:,3:4),2),1:2);
+                    touch = aidata.Mouse(last_sample,:);
+                    xy = touch(any(touch(3:4)),1:2);
                     if ~isempty(xy)
                         mglactivategraphic(Screen.TouchCursor,true);
-                        mglsetorigin(Screen.TouchCursor,Screen.SubjectScreenHalfSize + MLConfig.PixelsPerDegree.*xy(end,:));
+                        mglsetorigin(Screen.TouchCursor,Screen.SubjectScreenHalfSize + MLConfig.PixelsPerDegree.*xy);
                     else
                         mglactivategraphic(Screen.TouchCursor,false);
                     end
@@ -332,7 +332,8 @@ end
         obj = data(current_trial).ObjectStatusRecord;
         playing = false;
         mglsetproperty(MLConfig.Screen.EyeTracer,'clear');
-        max_sample = max([data(current_trial).BehavioralCodes.CodeTimes(end)/SampleInterval size(data(current_trial).AnalogData.Eye,1) size(data(current_trial).AnalogData.Joystick,1) size(data(current_trial).AnalogData.Mouse,1)]);
+        nsample = [floor(data(current_trial).BehavioralCodes.CodeTimes(end)/SampleInterval) size(data(current_trial).AnalogData.Eye,1) size(data(current_trial).AnalogData.Joystick,1) size(data(current_trial).AnalogData.Mouse,1)];
+        max_sample = min(nsample(0<nsample));
         max_frame = floor(max_sample * SampleInterval / RefreshInterval) + 1;
         current_frame = 0;
         set(hProgressbar,'min',0,'max',max_frame,'value',current_frame);
@@ -409,7 +410,7 @@ end
                 if MLConfig.DAQ.joystick_present, joy_ = JoyTracker(MLConfig,TaskObject,JoyCal,2); Tracker.add(joy_); end
                 if MLConfig.DAQ.mouse_present, touch_ = TouchTracker(MLConfig,TaskObject,EyeCal,2); Tracker.add(touch_); end
                 if MLConfig.DAQ.button_present, button_ = ButtonTracker(MLConfig,TaskObject,EyeCal,2); Tracker.add(button_); end
-                null_ = NullTracker(MLConfig,TaskObject,EyeCal);
+                null_ = NullTracker(MLConfig,TaskObject,EyeCal,2);
                 Tracker.init(param);
                 tracer_update = false;
                 
@@ -529,7 +530,7 @@ end
         
         MLConfig.EyeTracerShape = 'Circle';
         MLConfig.EyeTracerSize = 10;
-        MLConfig.ControlScreenZoom = 100;
+        MLConfig.ControlScreenZoom = 90;
 
         MLConfig.FixationPointImage = validate_path(MLConfig.FixationPointImage);
         MLConfig.JoystickCursorImage = validate_path(MLConfig.JoystickCursorImage);
@@ -689,7 +690,7 @@ end
         
     function init()
         BaseDirectory = [fileparts(mfilename('fullpath')) filesep];
-        addpath(BaseDirectory,[BaseDirectory 'daqtoolbox'],[BaseDirectory 'mgl'],[BaseDirectory 'kbd'],[BaseDirectory 'ext']);
+        addpath(BaseDirectory,[BaseDirectory 'daqtoolbox'],[BaseDirectory 'mgl'],[BaseDirectory 'kbd'],[BaseDirectory 'ext'],[BaseDirectory 'ext' filesep 'playback']);
         
         screensize = get(0,'ScreenSize');
         DPI_ratio = mglgetadapterdisplaymode(1) / screensize(3);

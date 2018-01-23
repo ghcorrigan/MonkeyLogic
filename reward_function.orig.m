@@ -96,9 +96,8 @@ switch NonBlocking
     case 0
         for m = 1:NumReward
             if ML_WarmingUp
-                reward_off(); %#ok<UNRCH>
+                % To use analog reward with stimulation, do not call reward_off().
                 mdqmex(102,Duration);
-                reward_off();
                 break
             else
                 reward_on();

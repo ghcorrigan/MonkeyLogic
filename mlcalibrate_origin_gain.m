@@ -139,7 +139,7 @@ end
                 show_fixationpoint = false;
             end                
             
-            getdata(DAQ);
+            peekfront(DAQ);
             if 1==EyeOrJoy, data = DAQ.Eye; else data = DAQ.Joystick; end
             if ~isempty(data)
                 if ~isempty(picked_target)

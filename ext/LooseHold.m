@@ -14,14 +14,14 @@ classdef LooseHold < mladapter
         end
         function init(obj,p)
             obj.Adapter.init(p);
+            obj.Success = false;
             obj.WasGood = true;
         end
         function continue_ = analyze(obj,p)
             obj.Adapter.analyze(p);
 
-            obj.Success = false;
             good = obj.Adapter.Success;
-            elapsed = p.scene_time;
+            elapsed = p.scene_time();
             
             if obj.WasGood && ~good
                 obj.WasGood = false;

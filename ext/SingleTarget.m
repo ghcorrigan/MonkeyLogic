@@ -6,6 +6,7 @@ classdef SingleTarget < mladapter
     end
     properties (SetAccess = protected)
         Running
+        Position
         Time
     end
     properties (Access = protected)
@@ -13,7 +14,6 @@ classdef SingleTarget < mladapter
         LastCrossTime
         
         FixWindowID
-        Position
         ScreenPosition
         ThresholdInPixels
     end
@@ -59,7 +59,7 @@ classdef SingleTarget < mladapter
         
         function init(obj,p)
             obj.Adapter.init(p);
-            obj.Success = [];
+            obj.Success = false;
             obj.Running = true;
             obj.LastCrossTime = 0;
             mglactivategraphic(obj.FixWindowID,true);
@@ -67,7 +67,6 @@ classdef SingleTarget < mladapter
         function fini(obj,p)
             obj.Adapter.fini(p);
             mglactivategraphic(obj.FixWindowID,false);
-            if strcmp(obj.Tracker.Signal,'Eye'), p.EyeTarget = obj.Position; end
         end
         function continue_ = analyze(obj,p)
             obj.Adapter.analyze(p);
@@ -83,7 +82,6 @@ classdef SingleTarget < mladapter
                 rc = obj.ThresholdInPixels;
                 in = rc(1)<data(:,1) & data(:,1)<rc(3) & rc(2)<data(:,2) & data(:,2)<rc(4);
             end
-            if isempty(obj.Success), obj.Success = in(1); end
             
             d = diff([obj.LastData; in]);
             d(isnan(d)) = false;  % for touch input

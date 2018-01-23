@@ -58,7 +58,7 @@ for m=1:length(vars)
     end
 end
 
-if isempty(MLConfig.SubjectName), editable_by_subject = 'MLEditable'; else editable_by_subject = ['MLEditable_' lower(MLConfig.SubjectName)]; end
+if isempty(MLConfig.SubjectName), editable_by_subject = 'MLEditable'; else, editable_by_subject = ['MLEditable_' lower(MLConfig.SubjectName)]; end
 if 2==exist(MLConfig.MLPath.ConfigurationFile,'file')
     saved_vars = whos('-file',MLConfig.MLPath.ConfigurationFile,editable_by_subject);
     if ~isempty(saved_vars) && 0<saved_vars.bytes
@@ -77,7 +77,7 @@ end
 if ~isempty(vars)
     MLEditable2.MLEditable = MLEditable;
     MLEditable2.(editable_by_subject) = MLEditable; %#ok<STRNU>
-    if 2==exist(MLConfig.MLPath.ConfigurationFile,'file'), save(MLConfig.MLPath.ConfigurationFile,'-struct','MLEditable2','-append'); else save(MLConfig.MLPath.ConfigurationFile,'-struct','MLEditable2'); end
+    if 2==exist(MLConfig.MLPath.ConfigurationFile,'file'), save(MLConfig.MLPath.ConfigurationFile,'-struct','MLEditable2','-append'); else, save(MLConfig.MLPath.ConfigurationFile,'-struct','MLEditable2'); end
     editable_vars = cell(length(vars),1);
     for m = 1:length(vars), editable_vars{m} = sprintf('%s = TrialData.VariableChanges.%s;', vars{m}, vars{m}); end
     timing_code = [editable_vars; timing_code];
@@ -88,12 +88,12 @@ timing_code = regexprep(timing_code,'(.*)',['$1' char(10)]);
 if ~exist('trialholder','var') || 2~=exist(trialholder,'file')
     if any(~cellfun(@isempty,regexp(timing_trimmed,'toggleobject'))) || any(~cellfun(@isempty,regexp(timing_trimmed,'eyejoytrack')))
         trialholder = [MLConfig.MLPath.BaseDirectory 'trialholder_v1.m'];
-
+        
         % Note that this part can be called every trial, if the userloop returns the trialholder filename.
         MLConfig.DAQ.unregister_digitalinput();  % we don't need to continuously sample digital input in this trialholder
     else
         trialholder = [MLConfig.MLPath.BaseDirectory 'trialholder_v2.m'];
-
+        
         % Note that this part can be called every trial, if the userloop returns the trialholder filename.
         hFig = findobj('tag','mlmonitor');
         if ~isempty(hFig)
@@ -120,7 +120,6 @@ if MLConfig.MinifyRuntime
             runtime_code{m} = remove_blank(tokens{m});
         end
     end
-    
 else
     runtime_code = regexprep(regexp([trialholder_code(1:insertion_point-1) userfunc [timing_code{:}] ...
         trialholder_code(insertion_point:end)],'[^\n]+\n|[^\n]+$','match')','\n$','');

@@ -8,9 +8,6 @@ classdef EyeTracker < Tracker
         XYData
         LastSamplePosition
     end
-    properties (Access = protected)
-        DataSource
-    end
     
     methods
         function obj = EyeTracker(varargin)  % MLConfig, TaskObject, CalFun, datasource
@@ -18,11 +15,9 @@ classdef EyeTracker < Tracker
             if 4~=nargin, return, end
             
             MLConfig = varargin{1};
-            datasource = varargin{4};
-            if 0==datasource && ~MLConfig.DAQ.eye_present, error('No eye signal input defined!!!'); end
+            if 0==obj.DataSource && ~MLConfig.DAQ.eye_present, error('No eye signal input defined!!!'); end
             
             obj.Signal = 'Eye';
-            obj.DataSource = datasource;
             obj.TracerShape = MLConfig.EyeTracerShape;
             obj.TracerColor = MLConfig.EyeTracerColor;
             obj.TracerSize = MLConfig.EyeTracerSize;

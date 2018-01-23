@@ -9,9 +9,6 @@ classdef JoyTracker < Tracker
         XYData
         LastSamplePosition
     end
-    properties (Access = protected)
-        DataSource
-    end
     
     methods
         function obj = JoyTracker(varargin)  % MLConfig, TaskObject, CalFun, datasource
@@ -19,11 +16,9 @@ classdef JoyTracker < Tracker
             if 4~=nargin, return, end
             
             MLConfig = varargin{1};
-            datasource = varargin{4};
-            if 0==datasource && ~MLConfig.DAQ.joystick_present, error('No joystick input defined!!!'); end
+            if 0==obj.DataSource && ~MLConfig.DAQ.joystick_present, error('No joystick input defined!!!'); end
 
             obj.Signal = 'Joystick';
-            obj.DataSource = datasource;
             obj.TracerImage = MLConfig.JoystickCursorImage;
             obj.TracerShape = MLConfig.JoystickCursorShape;
             obj.TracerColor = MLConfig.JoystickCursorColor;

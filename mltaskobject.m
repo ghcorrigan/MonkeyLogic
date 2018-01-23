@@ -66,6 +66,20 @@ classdef mltaskobject < matlab.mixin.Copyable
         end
         function val = length(obj), val = length(obj.ID); end
         function val = size(obj), val = size(obj.ID); end
+        function val = horzcat(obj,varargin)
+            val = copy(obj);
+            for m=1:length(varargin)
+                val.ID = [val.ID varargin{m}.ID];
+                val.Modality = [val.Modality varargin{m}.Modality];
+                val.Status = [val.Status varargin{m}.Status];
+                val.Position = [val.Position; varargin{m}.Position];
+                val.ScreenPosition = [val.ScreenPosition; varargin{m}.ScreenPosition];
+                val.Info = [val.Info; varargin{m}.Info];
+                val.MoreInfo = [val.MoreInfo varargin{m}.MoreInfo];
+                val.Size = [val.Size; varargin{m}.Size]; 
+            end
+        end
+        function val = vertcat(obj,varargin), val = horzcat(obj,varargin{:}); end
         
         function obj = subsasgn(obj,s,b)
             switch length(s)
@@ -95,13 +109,29 @@ classdef mltaskobject < matlab.mixin.Copyable
                                         case 'Status', obj.Status(s(2).subs{1}) = b;
                                         case 'Position'
                                             obj.Position(s(2).subs{1},:) = b;
-                                            obj.ScreenPosition(s(2).subs{1},:) = get_ScreenPosition(obj,b);
+                                            obj.ScreenPosition(s(2).subs{1},:) = get_ScreenPosition(obj,obj.Position(s(2).subs{1},:));
                                         otherwise, error('''%s'' is a read-only property',s(1).subs);
                                     end
                                 end
                             end
                         otherwise
                             error('Unknown subsref type');
+                    end
+                case 3
+                    switch s(1).type
+                        case {'()','{}'}
+                            if strcmp(s(2).type,'.')
+                                if isempty(s(1).subs{1})
+                                    error('Index is not given');
+                                else
+                                    switch s(2).subs
+                                        case 'Position'
+                                            obj.Position(s(1).subs{1},s(3).subs{1}) = b;
+                                            obj.ScreenPosition(s(1).subs{1},:) = get_ScreenPosition(obj,obj.Position(s(1).subs{1},:));
+                                        otherwise, error('''%s'' is a read-only property',s(2).subs);
+                                    end
+                                end
+                            end
                     end
                 otherwise
                     error('This type of assignment is not allowed.');
@@ -198,6 +228,7 @@ classdef mltaskobject < matlab.mixin.Copyable
                                 narr = length(s(1).subs{1});
                                 varargout = cell(1,narr);
                                 switch s(2).subs
+                                    case {'Position','ScreenPosition'}, varargout{1} = obj.(s(2).subs)(s(1).subs{1},s(3).subs{1});
                                     case 'Info', for m=1:narr, varargout{m} = obj.(s(2).subs)(s(1).subs{1}(m)).(s(3).subs); end
                                     case 'MoreInfo', for m=1:narr, varargout{m} = obj.(s(2).subs){s(1).subs{1}(m)}.(s(3).subs); end
                                 end

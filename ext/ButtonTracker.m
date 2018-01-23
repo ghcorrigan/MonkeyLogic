@@ -9,7 +9,6 @@ classdef ButtonTracker < Tracker
         ButtonsAvailable
     end
     properties (Access = protected)
-        DataSource
         InvertedButtons
     end
     
@@ -19,17 +18,14 @@ classdef ButtonTracker < Tracker
             if 4~=nargin, return, end
             
             MLConfig = varargin{1};
-            datasource = varargin{4};
-            if 0==datasource && ~MLConfig.DAQ.button_present, error('No button input is defined!!!'); end
+            if 0==obj.DataSource && ~MLConfig.DAQ.button_present, error('No button input is defined!!!'); end
 
             obj.Signal = 'Button';
-            obj.DataSource = datasource;
-
             obj.nButton = sum(obj.DAQ.nButton);
             obj.ClickData = cell(1,obj.nButton);
             obj.Invert = false(1,obj.nButton);
             obj.Status = false(1,obj.nButton);
-            if 1==datasource, obj.ButtonsAvailable = 1:10; else, obj.ButtonsAvailable = obj.DAQ.buttons_available; end
+            if 1==obj.DataSource, obj.ButtonsAvailable = 1:MLConfig.DAQ.nButton; else, obj.ButtonsAvailable = obj.DAQ.buttons_available; end
         end
         
         function invert(obj,button)

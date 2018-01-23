@@ -1,4 +1,4 @@
-function fliptime = mglpresent(screen)
+function fliptime = mglpresent(screen,varargin)
 %mglpresent(screen)
 %   screen - subject(1), control(2), or both(3)
 %
@@ -6,4 +6,4 @@ function fliptime = mglpresent(screen)
 
 if ~exist('screen','var'), screen = 3; end
 
-fliptime = mdqmex(9,screen);
+fliptime = mdqmex(9,screen,varargin{:});

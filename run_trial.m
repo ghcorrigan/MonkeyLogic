@@ -67,7 +67,7 @@ try
     if TrialRecord.TestTrial
         TaskObject = mltaskobject(taskobject,MLConfig);
         TrialData = mltrialdata;
-        TrialData.VariableChanges = copyfield(TrialData.VariableChanges,MLEditable,setdiff(fieldnames(MLEditable,'editable')));
+        TrialData.VariableChanges = copyfield(TrialData.VariableChanges,MLEditable,setdiff(fieldnames(MLEditable),'editable'));
         varargout{1} = runtime(MLConfig,TrialRecord,TaskObject,TrialData);
         close(hFig);
         return
@@ -81,18 +81,6 @@ try
     for trial=1:MLConfig.TotalNumberOfTrialsToRun
         if ~TrialRecord.SimulationMode && MLConfig.Touchscreen && 1<mglgetadaptercount, mglsetcursorpos(1); else mglsetcursorpos(-1); end
         
-        
-        %TrialRecord.new_trial(); seems to be where the current trial gets
-        %initialized. 
-        %TrialRecord is an instance of the mltrialrecord class. Open to see
-        %new_trial() function; q
-        
-        %taskobject : from the condition selected in
-        %TrialRecord.new_trial() gets the proper items from the config
-        %file?
-        
-        %runtime_handle holds the "TimingFile" function handles defined in
-        %the configuration file. 
         if isuserloopfile(MLConditions)
             [taskobject,timingfile,trialholder] = userloop_handle(MLConfig,TrialRecord);  % keep in mind that the userloop function is called before the trial number counts up 
             BlockChange = TrialRecord.BlockChange;
@@ -104,7 +92,6 @@ try
             taskobject = MLConditions.Conditions(TrialRecord.CurrentCondition).TaskObject;
             runtime = runtime_handle{MLConditions.UIVars.TimingFilesNo(TrialRecord.CurrentCondition)};
         end
-        
         TaskObject = mltaskobject(taskobject,MLConfig,TrialRecord);
 
         TrialData = mltrialdata;
@@ -241,10 +228,14 @@ if ~isempty(exception2), rethrow(exception2); end
         set(hFig,'CurrentAxes',hTimeline);
         delete(findobj(hTimeline,'tag','eventobj'));
         fontsize = 9;
-        h = text(0.5,0.94,sprintf('Trial #%d, Cond #%d',TrialData.Trial,TrialData.Condition),'horizontalalignment', 'center');
-        set(h, 'tag','eventobj', 'color',[1 1 1], 'fontsize',fontsize, 'fontweight','bold');
+        h = text(0.5,0.94,sprintf('Trial #%d, Cond #%d',TrialData.Trial,TrialData.Condition),'horizontalalignment','center');
+        set(h,'tag','eventobj','color',[1 1 1],'fontsize',fontsize,'fontweight','bold');
         code = TrialData.BehavioralCodes.CodeNumbers;
-        time = TrialData.BehavioralCodes.CodeTimes;
+        if MLConfig.NonStopRecording
+            time = TrialData.BehavioralCodes.CodeTimes - TrialData.BehavioralCodes.CodeTimes(1);
+        else
+            time = TrialData.BehavioralCodes.CodeTimes;
+        end
         ncode = length(code);
         maxtime = max(time);
         if 0<ncode && 0<maxtime
@@ -253,13 +244,13 @@ if ~isempty(exception2), rethrow(exception2); end
             x1 = 0.25 * ones(size(y));
             x2 = 0.28 * ones(size(y));
             h = line([x1; x2],[y; y]);
-            set(h, 'tag','eventobj', 'color',[1 0 0], 'linewidth',2);
+            set(h,'tag','eventobj','color',[1 0 0],'linewidth',2);
 
             y = 0.9 - 0.85 * time' / maxtime;
             x1 = 0.24 * ones(size(y));
             x2 = 0.29 * ones(size(y));
             h = line([x1; x2],[y; y]);
-            set(h, 'tag','eventobj', 'color',[1 1 1], 'linewidth',1);
+            set(h,'tag','eventobj','color',[1 1 1],'linewidth',1);
             
             BehavioralCodes = TrialRecord.TaskInfo.BehavioralCodes;
             if ~isempty(BehavioralCodes)
@@ -267,10 +258,10 @@ if ~isempty(exception2), rethrow(exception2); end
                 b(~a) = length(BehavioralCodes.CodeNames)+1;
                 codenames = [BehavioralCodes.CodeNames; {''}];
                 h = text(x2+0.03,y,codenames(b));
-                set(h, 'tag','eventobj', 'color',[1 1 1], 'fontsize',fontsize, 'fontweight','bold');
+                set(h,'tag','eventobj','color',[1 1 1],'fontsize',fontsize,'fontweight','bold');
             end
             h = text(x1-0.03,y,num2str(round(time)));
-            set(h, 'tag','eventobj', 'color',[1 1 1], 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment', 'right');
+            set(h,'tag','eventobj','color',[1 1 1],'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
         end
 
         % update userplot
@@ -394,7 +385,7 @@ if ~isempty(exception2), rethrow(exception2); end
             menuitem_pos(m,:) = mglgetproperty(menuitem(m),'rect');
         end
         
-        if DAQ.mouse_present, ML_Mouse = DAQ.get_device('mouse'); else ML_Mouse = pointingdevice; end
+        if DAQ.mouse_present, ML_Mouse = DAQ.get_device('mouse'); else, ML_Mouse = pointingdevice; end
         click_down = false;
         selected = [];
         kbdinit;
@@ -432,12 +423,12 @@ if ~isempty(exception2), rethrow(exception2); end
                         hDlg = figure;
                         fontsize = 9;
                         bgcolor = [0.9255 0.9137 0.8471];
-                        set(hDlg, 'position',[xy w h], 'menubar','none', 'numbertitle','off', 'name','Editable variables', 'color',bgcolor, 'windowstyle','modal');
+                        set(hDlg,'position',[xy w h],'menubar','none','numbertitle','off','name','Editable variables','color',bgcolor,'windowstyle','modal');
 
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-140 10 60 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-70 10 60 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                        uicontrol('parent',hDlg, 'style','text', 'position',[0 149 155 22], 'string','Next Block to Run', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-                        hlist = uicontrol('parent',hDlg, 'style','listbox', 'position',[50 45 60 106], 'min',1, 'max',1, 'string',num2cell(TrialRecord.BlocksToRun), 'fontsize',fontsize);
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-140 10 60 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-70 10 60 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                        uicontrol('parent',hDlg,'style','text','position',[0 149 155 22],'string','Next Block to Run','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                        hlist = uicontrol('parent',hDlg,'style','listbox','position',[50 45 60 106],'min',1,'max',1,'string',num2cell(TrialRecord.BlocksToRun),'fontsize',fontsize);
                         pause(0.3); drawnow; uiwait(hDlg); pause(0.3); drawnow;
 
                         if ishandle(hDlg)
@@ -456,12 +447,12 @@ if ~isempty(exception2), rethrow(exception2); end
                         hDlg = figure;
                         fontsize = 9;
                         bgcolor = [0.9255 0.9137 0.8471];
-                        set(hDlg, 'position',[xy w h], 'menubar','none', 'numbertitle','off', 'name','Error Logic', 'color',bgcolor, 'windowstyle','modal');
+                        set(hDlg,'position',[xy w h],'menubar','none','numbertitle','off','name','Error Logic','color',bgcolor,'windowstyle','modal');
 
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-140 10 60 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-70 10 60 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                        uicontrol('parent',hDlg, 'style','text', 'position',[0 149 155 22], 'string','Error Handling', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-                        hlist = uicontrol('parent',hDlg, 'style','listbox', 'position',[10 45 135 106], 'min',1, 'max',1, 'string',error_logic, 'fontsize',fontsize);
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-140 10 60 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-70 10 60 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                        uicontrol('parent',hDlg,'style','text','position',[0 149 155 22],'string','Error Handling','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                        hlist = uicontrol('parent',hDlg,'style','listbox','position',[10 45 135 106],'min',1,'max',1,'string',error_logic,'fontsize',fontsize);
                         pause(0.3); drawnow; uiwait(hDlg); pause(0.3); drawnow;
 
                         if ishandle(hDlg)
@@ -494,26 +485,26 @@ if ~isempty(exception2), rethrow(exception2); end
                         hDlg = figure;
                         fontsize = 9;
                         bgcolor = [0.9255 0.9137 0.8471];
-                        set(hDlg, 'position',[xy w h], 'menubar','none', 'numbertitle','off', 'name','Reward variables', 'color',bgcolor, 'windowstyle','modal');
+                        set(hDlg,'position',[xy w h],'menubar','none','numbertitle','off','name','Editable variables','color',bgcolor,'windowstyle','modal');
 
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-140 10 60 25], 'string','Save', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-70 10 60 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                        uicontrol('parent',hDlg, 'style','text', 'position',[5 h-25 195 22], 'string','Variables', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-                        uicontrol('parent',hDlg, 'style','text', 'position',[205 h-25 245 22], 'string','Values', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-140 10 60 25],'string','Save','fontsize',fontsize,'callback','uiresume(gcbf);');
+                        uicontrol('parent',hDlg,'style','pushbutton','position',[w-70 10 60 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                        uicontrol('parent',hDlg,'style','text','position',[5 h-25 195 22],'string','Variables','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                        uicontrol('parent',hDlg,'style','text','position',[205 h-25 245 22],'string','Values','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
                         for m=1:nfield
-                            uicontrol('parent',hDlg, 'style','text', 'position',[5 h-25-25*m 195 22], 'string',[field{m} ' :'], 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
+                            uicontrol('parent',hDlg,'style','text','position',[5 h-25-25*m 195 22],'string',[field{m} ' :'],'backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
                             switch MLEditable.editable.(field{m})
                                 case 'file'
-                                    uicontrol('parent',hDlg, 'style','edit', 'position',[205 h-22-25*m 215 22], 'tag',field{m}, 'string',MLEditable.(field{m}), 'fontsize',fontsize, 'fontweight','bold');
-                                    uicontrol('parent',hDlg, 'style','pushbutton', 'position',[425 h-22-25*m 25 22], 'string','...', 'fontsize',fontsize, 'fontweight','bold', 'callback',sprintf('f = uigetfile; if 0~=f, set(findobj(''tag'',''%s''),''string'',f); end, drawnow;',field{m}));
+                                    uicontrol('parent',hDlg,'style','edit','position',[205 h-22-25*m 215 22],'tag',field{m},'string',MLEditable.(field{m}),'fontsize',fontsize,'fontweight','bold');
+                                    uicontrol('parent',hDlg,'style','pushbutton','position',[425 h-22-25*m 25 22],'string','...','fontsize',fontsize,'fontweight','bold','callback',sprintf('f = uigetfile; if 0~=f, set(findobj(''tag'',''%s''),''string'',f); end, drawnow;',field{m}));
                                 case 'dir'
-                                    uicontrol('parent',hDlg, 'style','edit', 'position',[205 h-22-25*m 215 22], 'tag',field{m}, 'string',MLEditable.(field{m}), 'fontsize',fontsize, 'fontweight','bold');
-                                    uicontrol('parent',hDlg, 'style','pushbutton', 'position',[425 h-22-25*m 25 22], 'string','...', 'fontsize',fontsize, 'fontweight','bold', 'callback',sprintf('p = uigetdir; if 0~=p, set(findobj(''tag'',''%s''),''string'',p); end, drawnow;',field{m}));
+                                    uicontrol('parent',hDlg,'style','edit','position',[205 h-22-25*m 215 22],'tag',field{m},'string',MLEditable.(field{m}),'fontsize',fontsize,'fontweight','bold');
+                                    uicontrol('parent',hDlg,'style','pushbutton','position',[425 h-22-25*m 25 22],'string','...','fontsize',fontsize,'fontweight','bold','callback',sprintf('p = uigetdir; if 0~=p, set(findobj(''tag'',''%s''),''string'',p); end, drawnow;',field{m}));
                                 case 'color'
-                                    uicontrol('parent',hDlg, 'style','text', 'position',[205 h-24-25*m 175 22], 'tag',[field{m} '_edit'], 'string',sprintf('[%.3f %.3f %.3f]',MLEditable.(field{m})), 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-                                    uicontrol('parent',hDlg, 'style','pushbutton', 'position',[385 h-21-25*m 65 22], 'tag',field{m}, 'string','Color', 'backgroundcolor',MLEditable.(field{m}), 'foregroundcolor',1-MLEditable.(field{m}), 'fontsize',fontsize, 'callback',sprintf('c = uisetcolor; if ~isscalar(c), set(findobj(''tag'',''%s_edit''),''string'',sprintf(''[%%.3f %%.3f %%.3f]'',c)); set(findobj(''tag'',''%s''),''backgroundcolor'',c,''foregroundcolor'',1-c); end, drawnow;',field{m},field{m}));
+                                    uicontrol('parent',hDlg,'style','text','position',[205 h-24-25*m 175 22],'tag',[field{m} '_edit'],'string',sprintf('[%.3f %.3f %.3f]',MLEditable.(field{m})),'backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                                    uicontrol('parent',hDlg,'style','pushbutton','position',[385 h-21-25*m 65 22],'tag',field{m},'string','Color','backgroundcolor',MLEditable.(field{m}),'foregroundcolor',1-MLEditable.(field{m}),'fontsize',fontsize,'callback',sprintf('c = uisetcolor; if ~isscalar(c), set(findobj(''tag'',''%s_edit''),''string'',sprintf(''[%%.3f %%.3f %%.3f]'',c)); set(findobj(''tag'',''%s''),''backgroundcolor'',c,''foregroundcolor'',1-c); end, drawnow;',field{m},field{m}));
                                 otherwise
-                                    uicontrol('parent',hDlg, 'style','edit', 'position',[205 h-22-25*m 245 22], 'tag',field{m}, 'string',MLEditable.(field{m}), 'fontsize',fontsize, 'fontweight','bold');
+                                    uicontrol('parent',hDlg,'style','edit','position',[205 h-22-25*m 245 22],'tag',field{m},'string',MLEditable.(field{m}),'fontsize',fontsize,'fontweight','bold');
                             end
                         end
                         pause(0.3); drawnow; uiwait(hDlg); pause(0.3); drawnow;
@@ -590,7 +581,7 @@ if ~isempty(exception2), rethrow(exception2); end
         pos = get(findobj('tag','mlmainmenu'),'position');
         screen_pos = GetMonitorPosition(Pos2Rect(pos));
         dx = fi(screen_pos(3) < 1009, 95, 0);
-        dy = fi(screen_pos(4) < 864, 100, 0); 
+        dy = fi(screen_pos(4) < 864, 100, 0);
         
         fw = 993-dx;
         fh = 787-dy;
@@ -600,14 +591,14 @@ if ~isempty(exception2), rethrow(exception2); end
         fig_pos = [fx fy fw fh];
 
         hFig = figure;
-        set(hFig, 'tag','mlmonitor', 'numbertitle','off', 'name',sprintf('MonkeyLogic (%s)',MLConfig.MLVersion), 'menubar','none', 'position',fig_pos, 'resize','off', 'color',figure_bgcolor, 'windowstyle','modal');
+        set(hFig,'tag','mlmonitor','numbertitle','off','name',sprintf('MonkeyLogic (%s)',MLConfig.MLVersion),'menubar','none','position',fig_pos,'resize','off','color',figure_bgcolor,'windowstyle','modal');
 
-        set(hFig, 'closerequestfcn', @closeDlg);
+        set(hFig,'closerequestfcn',@closeDlg);
         warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');
-        jFrame = get(hFig, 'JavaFrame');
+        jFrame = get(hFig,'JavaFrame');
         jAxis = jFrame.getAxisComponent;
         if verLessThan('matlab','8.4')
-            hAxis = handle(jAxis, 'CallbackProperties');
+            hAxis = handle(jAxis,'CallbackProperties');
             set(hAxis,'AncestorMovedCallback',@on_move);
         else
             set(jAxis.getComponent(0),'AncestorMovedCallback',@on_move);
@@ -616,103 +607,103 @@ if ~isempty(exception2), rethrow(exception2); end
         hReplica = subplot('position',[0.2 0 0.1 0.1]);
         x = 5; y = fh - 603+dy;
         replica_pos = [x y 800-dx 600-dy];
-        set(hReplica, 'tag','replica', 'units','pixel', 'position',replica_pos, 'xtick',[], 'ytick',[], 'box','on', 'color',[0 0 0]);
+        set(hReplica,'tag','replica','units','pixel','position',replica_pos,'xtick',[],'ytick',[],'box','on','color',[0 0 0]);
 
         x = 5; y = 45;
-        uicontrol('parent',hFig, 'style','frame', 'position',[x y 186 134], 'backgroundcolor',frame_bgcolor);
+        uicontrol('parent',hFig,'style','frame','position',[x y 186 134],'backgroundcolor',frame_bgcolor);
         x = 10; y = 179 - 25; bgcolor = frame_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 52 20], 'string','Trial', 'backgroundcolor',bgcolor, 'fontsize',fontsize2, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+62 y 52 20], 'string','Block', 'backgroundcolor',bgcolor, 'fontsize',fontsize2, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+124 y 52 20], 'string','Cond', 'backgroundcolor',bgcolor, 'fontsize',fontsize2, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 52 20],'string','Trial','backgroundcolor',bgcolor,'fontsize',fontsize2,'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+62 y 52 20],'string','Block','backgroundcolor',bgcolor,'fontsize',fontsize2,'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+124 y 52 20],'string','Cond','backgroundcolor',bgcolor,'fontsize',fontsize2,'fontweight','bold');
         y = y - 19; bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x y+3 52 20], 'tag','TrialNo', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize2, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+62 y+3 52 20], 'tag','BlockNo', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize2, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+124 y+3 52 20], 'tag','CondNo', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize2, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x y+3 52 20],'tag','TrialNo','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize2,'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+62 y+3 52 20],'tag','BlockNo','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize2,'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+124 y+3 52 20],'tag','CondNo','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize2,'fontweight','bold');
         y = y - 28; bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x y+2 40 20], 'tag','TrialsInThisBlock', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x y+2 40 20],'tag','TrialsInThisBlock','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
         bgcolor = frame_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+44 y 136 20], 'string','Trial # within this block', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+44 y 136 20],'string','Trial # within this block','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
         y = y - 28; bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x y+2 40 20], 'tag','BlocksCompleted', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x y+2 40 20],'tag','BlocksCompleted','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
         bgcolor = frame_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+44 y 136 20], 'string','# of blocks completed', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+44 y 136 20],'string','# of blocks completed','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
         y = y - 28; bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x y+2 40 20], 'tag','TotalCorrectTrials', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x y+2 40 20],'tag','TotalCorrectTrials','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
         bgcolor = frame_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+44 y 136 20], 'string','Total # of correct trials', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+44 y 136 20],'string','Total # of correct trials','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
 
         x = 5; y = 24; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 90 18], 'tag','MaxLatencyLabel', 'string','Max latency', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+96 y 90 18], 'tag','CycleRateLabel', 'string','Cycle rate', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 90 18],'tag','MaxLatencyLabel','string','Max latency','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+96 y 90 18],'tag','CycleRateLabel','string','Cycle rate','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
         x = 5; y = 5; bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x y 90 20], 'tag','MaxLatency', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+96 y 90 20], 'tag','CycleRate', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x y 90 20],'tag','MaxLatency','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+96 y 90 20],'tag','CycleRate','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
         
         x = 192; y = 179 - 19; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 310 18], 'string','Trial errors', 'backgroundcolor',bgcolor, 'fontsize',fontsize2, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 310 18],'string','Trial errors','backgroundcolor',bgcolor,'fontsize',fontsize2,'fontweight','bold');
         y = y - 23;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 62 20], 'string','All cond', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 62 20],'string','All cond','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
         bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+64 y+3 231 20], 'tag','TrialErrorsInAllConds1', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+297 y+3 12 20], 'tag','TrialErrorsInAllConds2', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+64 y+3 231 20],'tag','TrialErrorsInAllConds1','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+297 y+3 12 20],'tag','TrialErrorsInAllConds2','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
         y = y - 23; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 62 20], 'string','This cond', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 62 20],'string','This cond','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
         bgcolor = [0 0 0]; fgcolor = [1 1 1];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+64 y+3 231 20], 'tag','TrialErrorsInThisCond1', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+297 y+3 12 20], 'tag','TrialErrorsInThisCond2', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+64 y+3 231 20],'tag','TrialErrorsInThisCond1','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+297 y+3 12 20],'tag','TrialErrorsInThisCond2','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
 
         x = 192; y = y - 19; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 310 18], 'string','Performance', 'backgroundcolor',bgcolor, 'fontsize',fontsize2, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 310 18],'string','Performance','backgroundcolor',bgcolor,'fontsize',fontsize2,'fontweight','bold');
         y = y - 23; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 62 20], 'string','Over all', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+64 y+2 45 20], 'tag','PerformanceOverAll2', 'backgroundcolor',bgcolor, 'foregroundcolor',[1 1 1], 'fontsize',10, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 62 20],'string','Over all','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+64 y+2 45 20],'tag','PerformanceOverAll2','backgroundcolor',bgcolor,'foregroundcolor',[1 1 1],'fontsize',10,'fontweight','bold');
         bgcolor = [0 0 0];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+109 y+3 200 20], 'tag','PerformanceOverAll', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+109 y+3 200 20],'tag','PerformanceOverAll','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
         y = y - 23; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 62 20], 'string','This block', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+64 y+2 45 20], 'tag','PerformanceThisBlock2', 'backgroundcolor',bgcolor, 'foregroundcolor',[1 1 1], 'fontsize',10, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 62 20],'string','This block','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+64 y+2 45 20],'tag','PerformanceThisBlock2','backgroundcolor',bgcolor,'foregroundcolor',[1 1 1],'fontsize',10,'fontweight','bold');
         bgcolor = [0 0 0];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+109 y+3 200 20], 'tag','PerformanceThisBlock', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+109 y+3 200 20],'tag','PerformanceThisBlock','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
         y = y - 23; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 62 20], 'string','This cond', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x+64 y+2 45 20], 'tag','PerformanceThisCond2', 'backgroundcolor',bgcolor, 'foregroundcolor',[1 1 1], 'fontsize',10, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 62 20],'string','This cond','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x+64 y+2 45 20],'tag','PerformanceThisCond2','backgroundcolor',bgcolor,'foregroundcolor',[1 1 1],'fontsize',10,'fontweight','bold');
         bgcolor = [0 0 0];
-        uicontrol('parent',hFig, 'style','edit', 'units','pixel', 'position',[x+109 y+3 200 20], 'tag','PerformanceThisCond', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
+        uicontrol('parent',hFig,'style','edit','units','pixel','position',[x+109 y+3 200 20],'tag','PerformanceThisCond','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
 
         colororder = [0 1 0; 0 1 1; 1 1 0; 0 0 1; 0.5 0.5 0.5; 1 0 1; 1 0 0; .3 .7 .5; .7 .2 .5; .5 .5 1; .75 .75 .5];
         performance_bar.PerformanceOverAll = zeros(2,10);
         performance_bar.PerformanceThisBlock = zeros(2,10);
         performance_bar.PerformanceThisCond = zeros(2,10);
         for m=1:10
-            performance_bar.PerformanceOverAll(1,m) = uicontrol('parent',hFig, 'style','frame', 'visible','off', 'backgroundcolor',colororder(m,:));
-            performance_bar.PerformanceThisBlock(1,m) = uicontrol('parent',hFig, 'style','frame', 'visible','off', 'backgroundcolor',colororder(m,:));
-            performance_bar.PerformanceThisCond(1,m) = uicontrol('parent',hFig, 'style','frame', 'visible','off', 'backgroundcolor',colororder(m,:));
-            performance_bar.PerformanceOverAll(2,m) = uicontrol('parent',hFig, 'style','text', 'visible','off', 'string',num2str(m-1), 'backgroundcolor',colororder(m,:), 'foregroundcolor',[1 1 1], 'fontsize',fontsize, 'fontweight','bold');
-            performance_bar.PerformanceThisBlock(2,m) = uicontrol('parent',hFig, 'style','text', 'visible','off', 'string',num2str(m-1), 'backgroundcolor',colororder(m,:), 'foregroundcolor',[1 1 1], 'fontsize',fontsize, 'fontweight','bold');
-            performance_bar.PerformanceThisCond(2,m) = uicontrol('parent',hFig, 'style','text', 'visible','off', 'string',num2str(m-1), 'backgroundcolor',colororder(m,:), 'foregroundcolor',[1 1 1], 'fontsize',fontsize, 'fontweight','bold');
+            performance_bar.PerformanceOverAll(1,m) = uicontrol('parent',hFig,'style','frame','visible','off','backgroundcolor',colororder(m,:));
+            performance_bar.PerformanceThisBlock(1,m) = uicontrol('parent',hFig,'style','frame','visible','off','backgroundcolor',colororder(m,:));
+            performance_bar.PerformanceThisCond(1,m) = uicontrol('parent',hFig,'style','frame','visible','off','backgroundcolor',colororder(m,:));
+            performance_bar.PerformanceOverAll(2,m) = uicontrol('parent',hFig,'style','text','visible','off','string',num2str(m-1),'backgroundcolor',colororder(m,:),'foregroundcolor',[1 1 1],'fontsize',fontsize,'fontweight','bold');
+            performance_bar.PerformanceThisBlock(2,m) = uicontrol('parent',hFig,'style','text','visible','off','string',num2str(m-1),'backgroundcolor',colororder(m,:),'foregroundcolor',[1 1 1],'fontsize',fontsize,'fontweight','bold');
+            performance_bar.PerformanceThisCond(2,m) = uicontrol('parent',hFig,'style','text','visible','off','string',num2str(m-1),'backgroundcolor',colororder(m,:),'foregroundcolor',[1 1 1],'fontsize',fontsize,'fontweight','bold');
         end
         
         x = x + 10; y = y - 23; bgcolor = figure_bgcolor;
-        uicontrol('parent',hFig, 'style','text', 'units','pixel', 'position',[x y 110 20], 'string','Screen zoom (%) :', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('parent',hFig, 'style','edit', 'tag','operatorview1', 'units','pixel', 'position',[x+110 y+3 50 20], 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('parent',hFig, 'style','slider', 'tag','operatorview2', 'min',ControlScreenZoomRange(1), 'max',ControlScreenZoomRange(2), 'sliderstep',[1 10]./(ControlScreenZoomRange(2)-ControlScreenZoomRange(1)), 'value',ControlScreenZoomRange(1), 'units','pixel', 'position',[x+170 y+3 120 19], 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('parent',hFig,'style','text','units','pixel','position',[x y 110 20],'string','Screen zoom (%) :','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('parent',hFig,'style','edit','tag','operatorview1','units','pixel','position',[x+110 y+3 50 20],'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('parent',hFig,'style','slider','tag','operatorview2','min',ControlScreenZoomRange(1),'max',ControlScreenZoomRange(2),'sliderstep',[1 10]./(ControlScreenZoomRange(2)-ControlScreenZoomRange(1)),'value',ControlScreenZoomRange(1),'units','pixel','position',[x+170 y+3 120 19],'fontsize',fontsize,'callback',callbackfunc);
 
         x = 505; y = 5;
-        hMessagebox = uicontrol('style','list', 'position',[x y 300-dx 174], 'string',{'<html><font color="gray">>> End of the messages</font></html>'}, 'backgroundcolor',[1 1 1], 'fontsize',fontsize);
+        hMessagebox = uicontrol('style','list','position',[x y 300-dx 174],'string',{'<html><font color="gray">>> End of the messages</font></html>'},'backgroundcolor',[1 1 1],'fontsize',fontsize);
 
         x = 810; y = fh - 603+dy;
         hTimeline = subplot('position',[0.2 0 0.1 0.1]);
-        set(hTimeline, 'tag','timeline', 'units','pixel', 'position',[x-dx y 180 600-dy], 'xlim',[0 1], 'ylim',[0 1], 'xtick',[], 'ytick',[], 'box','on', 'color',[0.3 0.3 0.5]);
-        h = text(0.5, 0.97, 'Time Line');
-        set(h, 'color',[1 1 1], 'horizontalalignment','center', 'fontweight','bold', 'fontsize',11);
+        set(hTimeline,'tag','timeline','units','pixel','position',[x-dx y 180 600-dy],'xlim',[0 1],'ylim',[0 1],'xtick',[],'ytick',[],'box','on','color',[0.3 0.3 0.5]);
+        h = text(0.5,0.97,'Time Line');
+        set(h,'color',[1 1 1],'horizontalalignment','center','fontweight','bold','fontsize',11);
         patch([0.25 0.28 0.28 0.25],[0.05 0.05 0.90 0.90],[1 1 1]);
         
         hUserplot = subplot('position',[0.2 0 0.1 0.1]);
-        set(hUserplot, 'tag','userplot', 'units','pixel', 'xtick',[], 'ytick',[], 'box','off', 'color',figure_bgcolor);
+        set(hUserplot,'tag','userplot','units','pixel','xtick',[],'ytick',[],'box','off','color',figure_bgcolor);
         if verLessThan('matlab','8.4')
-            set(hUserplot, 'position',[850-dx 42 127 109]);
+            set(hUserplot,'position',[850-dx 42 127 109]);
         else
-            set(hUserplot, 'outerposition',[810-dx 0 184 184]);
+            set(hUserplot,'outerposition',[810-dx 0 184 184]);
         end
     	pause(0.3); drawnow;
 

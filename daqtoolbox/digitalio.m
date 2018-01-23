@@ -1,25 +1,25 @@
 classdef digitalio < dynamicprops
     properties
-        Line;
-        Name;
-        Running;
-        SampleRate;
-        SamplesAcquired;
-        SamplesAvailable;
+        Line
+        Name
+        Running
+        SampleRate
+        SamplesAcquired
+        SamplesAvailable
     end
     properties (Constant)
-        Type = 'Digital IO';
+        Type = 'Digital IO'
     end
     properties (Hidden = true)
-        hwInfo;
+        hwInfo
     end
     properties (Access = protected)
-        AdaptorName;
-        DeviceID;
-        TaskID;
+        AdaptorName
+        DeviceID
+        TaskID
     end
     properties (Access = protected, Constant)
-        SubsystemType = 3;  % 1: AI, 2: AO, 3: DIO
+        SubsystemType = 3   % 1: AI, 2: AO, 3: DIO
     end
     
     methods (Access = protected, Static)
@@ -180,6 +180,9 @@ classdef digitalio < dynamicprops
             if 1 < length(obj), error('OBJ must be a 1-by-1 digital I/O object or a digital I/O line array.'); end
             val = mdqmex(69,obj.AdaptorName,obj.DeviceID,obj.TaskID);
         end
+        function marker_position = flushmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,1);
+        end
         function flushdata(obj,mode) % Since we don't do triggering in pointing device, mode doesn't matter.
             for m=1:length(obj)
                 mdqmex(72,obj(m).AdaptorName,obj(m).DeviceID,obj(m).SubsystemType,obj(m).TaskID,false);
@@ -191,7 +194,7 @@ classdef digitalio < dynamicprops
                 case 1, data = mdqmex(74,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID)';
                 otherwise, data = mdqmex(74,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,nsamples)';
             end
-            if isempty(data), val = []; else val = '1' == fliplr(dec2bin(data,length(obj.Line))); end
+            if isempty(data), val = []; else, val = '1' == fliplr(dec2bin(data,length(obj.Line))); end
         end
         function val = peekdata(obj,nsamples)
             if 1 < length(obj), error('OBJ must be a 1-by-1 analog input object.'); end
@@ -199,15 +202,23 @@ classdef digitalio < dynamicprops
                 case 1, data = mdqmex(75,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID)';
                 otherwise, data = mdqmex(75,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,nsamples)';
             end
-            if isempty(data), val = []; else val = '1' == fliplr(dec2bin(data,length(obj.Line))); end
+            if isempty(data), val = []; else, val = '1' == fliplr(dec2bin(data,length(obj.Line))); end
         end
-        function marker_position = putmarker(obj)
-            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
+        function marker_position = frontmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,2);
         end
-        function [val,nsamps_from_marker] = getmarked(obj)
+        function [val,nsamps_from_marker] = peekfront(obj)
             if 1 < length(obj), error('OBJ must be a 1-by-1 pointing device object.'); end
-            [data,nsamps_from_marker] = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
-            if isempty(data), val = []; else val = '1' == fliplr(dec2bin(data',length(obj.Line))); end
+            [data,nsamps_from_marker] = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,true);
+            if isempty(data), val = []; else, val = '1' == fliplr(dec2bin(data',length(obj.Line))); end
+        end
+        function marker_position = backmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,3);
+        end
+        function val = getback(obj)
+            if 1 < length(obj), error('OBJ must be a 1-by-1 pointing device object.'); end
+            data = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,false);
+            if isempty(data), val = []; else, val = '1' == fliplr(dec2bin(data',length(obj.Line))); end
         end
         function register(obj,name)
             if ~exist('name','var'), name = ''; end

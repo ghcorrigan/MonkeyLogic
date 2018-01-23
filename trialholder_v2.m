@@ -4,7 +4,7 @@ function varargout = trialholder(MLConfig,TrialRecord,TaskObject,TrialData)
 %   Sep 7, 2017     Written by Jaewon Hwang (jaewon.hwang@nih.gov, jaewon.hwang@hotmail.com)
 
 %% initialization
-global ML_global_timer ML_global_timer_offset ML_prev_eye_position %#ok<NUSED>
+global ML_global_timer ML_global_timer_offset ML_prev_eye_position ML_trialtime_offset ML_Clock %#ok<NUSED>
 if isempty(ML_global_timer), ML_global_timer = tic; end
 varargout{1} = [];
 
@@ -12,7 +12,7 @@ DAQ = MLConfig.DAQ;
 DAQ.simulated_input(-1);
 Screen = MLConfig.Screen;
 SIMULATION_MODE = TrialRecord.SimulationMode;
-if SIMULATION_MODE, DAQ.add_mouse(); end
+if SIMULATION_MODE, DAQ.add_mouse(); DAQ.create_simulated_output(); end
 
 % writes the Info field from the conditions file if it exists in TrialRecord
 Info = TrialRecord.CurrentConditionInfo;
@@ -27,20 +27,16 @@ EyeCal = mlcalibrate('eye',MLConfig);
 JoyCal = mlcalibrate('joy',MLConfig);
 
 % TaskObject variables
+ML_ObjectID = TaskObject.ID;
+ML_nObject = length(TaskObject);
+
 ML_Modality = TaskObject.Modality;
 ML_Visual = 1==ML_Modality | 2==ML_Modality;
 ML_Movie = 2==ML_Modality;
 ML_Sound = 3==ML_Modality;
-ML_Stimulation = 4==ML_Modality;
-ML_TTL = 5==ML_Modality;
-
-ML_ObjectID = TaskObject.ID;
-ML_VisualID = ML_ObjectID(ML_Visual);
-ML_SoundID = ML_ObjectID(ML_Sound);
-ML_nObject = length(TaskObject);
 
 ML_IO_Channel = zeros(1,ML_nObject);
-for ML_ = find(ML_Stimulation|ML_TTL), ML_IO_Channel(ML_) = TaskObject(ML_).MoreInfo.Channel; end
+for ML_=find(4==ML_Modality|5==ML_Modality), ML_IO_Channel(ML_) = TaskObject(ML_).MoreInfo.Channel; end
 
 if DAQ.mouse_present, ML_Mouse = DAQ.get_device('mouse'); else ML_Mouse = pointingdevice; end
 if TrialRecord.CurrentTrialNumber < 2, DAQ.goodmonkey(20,'ML_WarmingUp',true,'NumReward',1); end
@@ -62,11 +58,11 @@ mglactivategraphic(Screen.DashBoard,true);
 mglactivategraphic([Screen.Reward Screen.RewardCount Screen.RewardDuration Screen.TTL(:)' Screen.Stimulation(:)'],false);
 
 ML_Tracker = TrackerAggregate();
-if SIMULATION_MODE || DAQ.eye_present, eye_ = EyeTracker(MLConfig,TaskObject,EyeCal,double(SIMULATION_MODE)); ML_Tracker.add(eye_); end
-if SIMULATION_MODE || DAQ.joystick_present, joy_ = JoyTracker(MLConfig,TaskObject,JoyCal,double(SIMULATION_MODE)); ML_Tracker.add(joy_); end
-if SIMULATION_MODE || DAQ.mouse_present, touch_ = TouchTracker(MLConfig,TaskObject,EyeCal,double(SIMULATION_MODE)); ML_Tracker.add(touch_); end
-if SIMULATION_MODE || DAQ.button_present, button_ = ButtonTracker(MLConfig,TaskObject,EyeCal,double(SIMULATION_MODE)); ML_Tracker.add(button_); end
-null_ = NullTracker(MLConfig,TaskObject,EyeCal);
+if SIMULATION_MODE || DAQ.eye_present, eye_ = EyeTracker(MLConfig,TaskObject,EyeCal,SIMULATION_MODE); ML_Tracker.add(eye_); end
+if SIMULATION_MODE || DAQ.joystick_present, joy_ = JoyTracker(MLConfig,TaskObject,JoyCal,SIMULATION_MODE); ML_Tracker.add(joy_); end
+if SIMULATION_MODE || DAQ.mouse_present, touch_ = TouchTracker(MLConfig,TaskObject,EyeCal,SIMULATION_MODE); ML_Tracker.add(touch_); end
+if SIMULATION_MODE || DAQ.button_present, button_ = ButtonTracker(MLConfig,TaskObject,EyeCal,SIMULATION_MODE); ML_Tracker.add(button_); end
+null_ = NullTracker(MLConfig,TaskObject,EyeCal,SIMULATION_MODE);
 
     %% function create_scene
     function ml_scene = create_scene(adapter,stimuli)
@@ -89,7 +85,7 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
             param_.SceneStartFrame = param_.FrameNum;
             ML_Tracker.init(param_);
             adapter.init(param_);
-            DAQ.getmarked();
+            DAQ.peekfront();
             ML_Tracker.acquire(param_);
             adapter.analyze(param_);
             adapter.draw(param_);
@@ -131,26 +127,26 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
 
         ML_Tracker.init(param_);
         scene.Adapter.init(param_);
-        DAQ.getmarked();
+        DAQ.peekfront();
         ML_Tracker.acquire(param_);
         continue_ = scene.Adapter.analyze(param_);
         scene.Adapter.draw(param_);
         mglrendergraphic(param_.FrameNum);
         ML_MaxDrawingTime = max(ML_MaxDrawingTime,param_.scene_time());
         ml_fliptime = mdqmex(97,true,[event param_.EventMarker]); param_.EventMarker = [];
-        mglpresent(2);
+        mglpresent(2,MLConfig.RunMessageLoop,SIMULATION_MODE);
         param_.FrameNum = param_.FrameNum + 1;
         ml_prevflip = ml_fliptime;
         while continue_
             ml_drawingstart = trialtime();
-            DAQ.getmarked();
+            DAQ.peekfront();
             ML_Tracker.acquire(param_);
             continue_ = scene.Adapter.analyze(param_);
             scene.Adapter.draw(param_);
             mglrendergraphic(param_.FrameNum);
             ML_MaxDrawingTime = max(ML_MaxDrawingTime,trialtime()-ml_drawingstart);
             ml_currentflip = mdqmex(97,true,param_.EventMarker,true,false); param_.EventMarker = [];
-            mglpresent(2);
+            mglpresent(2,MLConfig.RunMessageLoop,SIMULATION_MODE);
             ml_frame_interval = ml_currentflip - ml_prevflip;
             ml_skipped = round(ml_frame_interval / ML_FrameLength) - 1;
             if 0 < ml_skipped
@@ -173,9 +169,9 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
             ML_SceneCount = ML_SceneCount + 1;
             ML_ObjectStatusRecord.SceneParam(ML_SceneCount) = copy(scene);
         end
-        if ~isempty(param_.EyeTarget) && ~isempty(param_.EyeFixPeriod) && ML_EyeTargetIndex < ML_MaxEyeTargetIndex
+        if ~isempty(param_.EyeTargetRecord) && ML_EyeTargetIndex < ML_MaxEyeTargetIndex
             ML_EyeTargetIndex = ML_EyeTargetIndex + 1;
-            ML_EyeTargetRecord(ML_EyeTargetIndex,:) = [param_.EyeTarget param_.EyeFixPeriod];
+            ML_EyeTargetRecord(ML_EyeTargetIndex,:) = param_.EyeTargetRecord;
         end
         
         mglactivategraphic(ML_ObjectID(scene.Visual),false);
@@ -373,8 +369,6 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
     end
 
     %% function trialtime
-    ML_trialtime_offset = toc(ML_global_timer);
-    DAQ.init_timer(ML_global_timer,ML_trialtime_offset);
     function ml_t = trialtime(), ml_t = mdqmex(93); end  % in milliseconds
  
     %% function bhv_variable
@@ -471,12 +465,12 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
         % turn off the photodiode trigger so that it becomes black when the next trial begins.
         if 1 < MLConfig.PhotoDiodeTrigger
             mglactivategraphic([Screen.PhotodiodeWhite Screen.PhotodiodeBlack],[false true]);
-            mglrendergraphic(param_.FrameNum,1,false);
+            mglrendergraphic(param_.FrameNum,1,true);
             mglpresent(1);
         end
         
         TrialData.BehavioralCodes = struct('CodeTimes',[], 'CodeNumbers',[]);
-        TrialData.AnalogData = struct('SampleInterval',[],'Eye',[],'Joystick',[],'Mouse',[],'PhotoDiode',[]);
+        TrialData.AnalogData = struct('SampleInterval',[],'Eye',[],'EyeExtra',[],'Joystick',[],'Mouse',[],'PhotoDiode',[]);
         for ml_=1:DAQ.nGeneral, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = []; end
         for ml_=1:DAQ.nButton, TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = []; end
         
@@ -486,31 +480,61 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
         end
         
         ml_SampleInterval = 1000 / MLConfig.AISampleRate;
-        ml_MinSamplesExpected = ceil(trialtime());
-        ml_SamplePoint = 1:ml_SampleInterval:ml_MinSamplesExpected;
-        if DAQ.isrunning
-            while DAQ.MinSamplesAvailable <= ml_MinSamplesExpected, end
-            stop(DAQ);
-        end
-        getdata(DAQ);
-        
         TrialData.AnalogData.SampleInterval = ml_SampleInterval;
-        if SIMULATION_MODE
-            if ~isempty(DAQ.Mouse)
-                TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse(ml_SamplePoint,:));
-                TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton(ml_SamplePoint,:)];
+        
+        if MLConfig.NonStopRecording
+            backmarker(DAQ);
+            ML_trialtime_offset = toc(ML_global_timer);
+            ML_Clock = clock;
+            getback(DAQ);
+            
+            if SIMULATION_MODE
+                if ~isempty(DAQ.Mouse)
+                    TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse);
+                    TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton];
+                end
+            else
+                if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye,param_.EyeOffset); end
+                if ~isempty(DAQ.EyeExtra), TrialData.AnalogData.EyeExtra = DAQ.EyeExtra; end
+                if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick,param_.JoyOffset); end
+                if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse) DAQ.MouseButton]; end
+                if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode; end
+                for ml_=DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}; end
+                for ml_=DAQ.buttons_available
+                    if button_.Invert(ml_)
+                        TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = ~DAQ.Button{ml_};
+                    else
+                        TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = DAQ.Button{ml_};
+                    end
+                end
             end
         else
-            if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye(ml_SamplePoint,:),param_.EyeOffset); end
-            if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick(ml_SamplePoint,:),param_.JoyOffset); end
-            if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse(ml_SamplePoint,:)) DAQ.MouseButton(ml_SamplePoint,:)]; end
-            if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode(ml_SamplePoint,:); end
-            for ml_=DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}(ml_SamplePoint,:); end
-            for ml_=DAQ.buttons_available
-                if button_.Invert(ml_)
-                    TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = ~DAQ.Button{ml_}(ml_SamplePoint,:);
-                else
-                    TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = DAQ.Button{ml_}(ml_SamplePoint,:);
+            ml_MinSamplesExpected = ceil(trialtime());
+            ml_SamplePoint = 1:ml_SampleInterval:ml_MinSamplesExpected;
+            if DAQ.isrunning
+                while DAQ.MinSamplesAvailable <= ml_MinSamplesExpected, end
+                stop(DAQ);
+            end
+            getdata(DAQ);
+
+            if SIMULATION_MODE
+                if ~isempty(DAQ.Mouse)
+                    TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse(ml_SamplePoint,:));
+                    TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton(ml_SamplePoint,:)];
+                end
+            else
+                if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye(ml_SamplePoint,:),param_.EyeOffset); end
+                if ~isempty(DAQ.EyeExtra), TrialData.AnalogData.EyeExtra = DAQ.EyeExtra(ml_SamplePoint,:); end
+                if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick(ml_SamplePoint,:),param_.JoyOffset); end
+                if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse(ml_SamplePoint,:)) DAQ.MouseButton(ml_SamplePoint,:)]; end
+                if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode(ml_SamplePoint,:); end
+                for ml_=DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}(ml_SamplePoint,:); end
+                for ml_=DAQ.buttons_available
+                    if button_.Invert(ml_)
+                        TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = ~DAQ.Button{ml_}(ml_SamplePoint,:);
+                    else
+                        TrialData.AnalogData.Button.(sprintf('Btn%d',ml_)) = DAQ.Button{ml_}(ml_SamplePoint,:);
+                    end
                 end
             end
         end
@@ -520,15 +544,14 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
         ml_joy_trace = NaN;
         ml_touch_trace = NaN;
         if MLConfig.SummarySceneDuringITI
-            ml_nSample = length(ml_SamplePoint);
             if ~isempty(TrialData.AnalogData.Eye)
                 ml_eye = EyeCal.deg2pix(TrialData.AnalogData.Eye);
-                ml_eye_trace = mgladdline(MLConfig.EyeTracerColor,ml_nSample,1,10);
+                ml_eye_trace = mgladdline(MLConfig.EyeTracerColor,size(ml_eye,1),1,10);
                 mglsetproperty(ml_eye_trace,'addpoint',ml_eye);
             end
             if ~isempty(TrialData.AnalogData.Joystick)
                 ml_joy = JoyCal.deg2pix(TrialData.AnalogData.Joystick);
-                ml_joy_trace = mgladdline(MLConfig.JoystickCursorColor,ml_nSample,1,10);
+                ml_joy_trace = mgladdline(MLConfig.JoystickCursorColor,size(ml_joy,1),1,10);
                 mglsetproperty(ml_joy_trace,'addpoint',ml_joy);
             end
             if ~isempty(TrialData.AnalogData.Mouse)
@@ -540,10 +563,10 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
                 end
                 ml_touch_trace = NaN(1,ml_ntouch);
                 ml_imdata = load_cursor(MLConfig.TouchCursorImage,MLConfig.TouchCursorShape,MLConfig.TouchCursorColor,MLConfig.TouchCursorSize);
-                for ml_ = 1:ml_ntouch, ml_touch_trace(ml_) = mgladdbitmap(ml_imdata,10); end
+                for ml_=1:ml_ntouch, ml_touch_trace(ml_) = mgladdbitmap(ml_imdata,10); end
                 mglsetorigin(ml_touch_trace,ml_touch);
             end
-            mglactivategraphic(ML_VisualID,false);
+            mglactivategraphic(ML_ObjectID(ML_Visual),false);
             mglactivategraphic(ML_ObjectID(ML_GraphicsUsedInThisTrial),true);
         end
         
@@ -571,8 +594,8 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal);
                 end
             end
         end
-        mglsetscreencolor(2,[0.25 0.25 0.25]);
-        mdqmex(104);
+        mglsetscreencolor(2,fi(MLConfig.NonStopRecording,[0 0.4 0.2],[0.25 0.25 0.25]));
+        mdqmex(104);  % ClearControlScreenEdge
         mglrendergraphic(param_.FrameNum,2,false);
         mglpresent(2);
         mgldestroygraphic([ml_eye_trace ml_joy_trace ml_touch_trace ml_id(:)']);
@@ -605,18 +628,31 @@ if SIMULATION_MODE
     hotkey('uarr', 'DAQ.simulated_input(1,2,1);');
     hotkey('darr', 'DAQ.simulated_input(1,2,-1);');
 else
-    hotkey('c', 'ML_prev_eye_position(end+1,:) = eye_position * EyeCal.rotation_rev_t; ML_param.EyeOffset = ML_param.EyeOffset + ML_prev_eye_position(end,:);');  % adjust eye offset
-    hotkey('u', 'if ~isempty(ML_prev_eye_position), ML_param.EyeOffset = ML_param.EyeOffset - ML_prev_eye_position(end,:); ML_prev_eye_position(end,:) = []; end');
+    hotkey('c', 'ML_prev_eye_position(end+1,:) = eye_position * EyeCal.rotation_rev_t; param_.EyeOffset = param_.EyeOffset + ML_prev_eye_position(end,:);');  % adjust eye offset
+    hotkey('u', 'if ~isempty(ML_prev_eye_position), param_.EyeOffset = param_.EyeOffset - ML_prev_eye_position(end,:); ML_prev_eye_position(end,:) = []; end');
 end
 
 kbdflush;
 rt = NaN;
 
-start(DAQ);
-flushdata(DAQ);
-ML_trialtime_offset = toc(ML_global_timer);
-TrialData.TrialDateTime = clock;
-if TrialRecord.CurrentTrialNumber < 2, ML_global_timer_offset = ML_trialtime_offset; end
+if MLConfig.NonStopRecording
+    if TrialRecord.CurrentTrialNumber < 2
+        start(DAQ);
+        flushmarker(DAQ);
+        ML_trialtime_offset = toc(ML_global_timer);
+        ML_Clock = clock;
+        flushdata(DAQ);
+        ML_global_timer_offset = ML_trialtime_offset;
+    end
+    TrialData.TrialDateTime = ML_Clock;
+else
+    start(DAQ);
+    flushmarker(DAQ);
+    ML_trialtime_offset = toc(ML_global_timer);
+    TrialData.TrialDateTime = clock;
+    flushdata(DAQ);
+    if TrialRecord.CurrentTrialNumber < 2, ML_global_timer_offset = ML_trialtime_offset; end
+end
 TrialData.AbsoluteTrialStartTime = (ML_trialtime_offset - ML_global_timer_offset) * 1000;
 DAQ.init_timer(ML_global_timer,ML_trialtime_offset);
 mglsetscreencolor(2,[0.1333 0.3333 0.5490]);

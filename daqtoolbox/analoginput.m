@@ -1,49 +1,49 @@
 classdef analoginput < dynamicprops
     properties
-        BufferingConfig;        % unused
-        Channel;
-        EventLog;
-        InitialTriggerTime;
-        InputType;
-        Logging;
-        LoggingMode;
-        ManualTriggerHwOn;
-        Name;
-        Running;
-        SampleRate;
-        SamplesAcquired;
-        SamplesAvailable;
-        SamplesPerTrigger;
-        TransferMode;           % unused
-        TriggerChannel;
-        TriggerCondition;
-        TriggerConditionValue;
-        TriggerDelay;
-        TriggerDelayUnits;
-        TriggerRepeat;
-        TriggersExecuted;
-        TriggerType;
+        BufferingConfig         % unused
+        Channel
+        EventLog
+        InitialTriggerTime
+        InputType
+        Logging
+        LoggingMode
+        ManualTriggerHwOn
+        Name
+        Running
+        SampleRate
+        SamplesAcquired
+        SamplesAvailable
+        SamplesPerTrigger
+        TransferMode            % unused
+        TriggerChannel
+        TriggerCondition
+        TriggerConditionValue
+        TriggerDelay
+        TriggerDelayUnits
+        TriggerRepeat
+        TriggersExecuted
+        TriggerType
     end
     properties (Constant)
-        Type = 'Analog Input';
+        Type = 'Analog Input'
     end
     properties (Hidden = true)
-        hwInfo;
+        hwInfo
     end
     properties (Access = protected)
-        AdaptorName;
-        DeviceID;
-        TaskID;
-        InputTypeSet;
+        AdaptorName
+        DeviceID
+        TaskID
+        InputTypeSet
     end
     properties (Access = protected, Constant)
-        LoggingModeSet = {'Memory'};
-        ManualTriggerHwOnSet = {'Start','Trigger'};
-        TransferModeSet = {'DualDMA','SingleDMA','Interrupts'};
-        TriggerConditionSet = {'None','Rising','Falling','Leaving','Entering'};
-        TriggerDelayUnitsSet = {'Seconds','Samples'};
-        TriggerTypeSet = {'Immediate','Manual','Software'};
-        SubsystemType = 1;	% 1: AI, 2: AO, 3: DIO
+        LoggingModeSet = {'Memory'}
+        ManualTriggerHwOnSet = {'Start','Trigger'}
+        TransferModeSet = {'DualDMA','SingleDMA','Interrupts'}
+        TriggerConditionSet = {'None','Rising','Falling','Leaving','Entering'}
+        TriggerDelayUnitsSet = {'Seconds','Samples'}
+        TriggerTypeSet = {'Immediate','Manual','Software'}
+        SubsystemType = 1 	% 1: AI, 2: AO, 3: DIO
     end
    
     methods (Access = protected, Static)
@@ -253,6 +253,9 @@ classdef analoginput < dynamicprops
             end
         end
         
+        function marker_position = flushmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,1);
+        end
         function flushdata(obj,mode)
             modeSet = {'all','triggers'};
             if ~exist('mode','var'), mode = 'all'; end
@@ -312,15 +315,22 @@ classdef analoginput < dynamicprops
             if 1 < length(obj), error('OBJ must be a 1-by-1 device object.'); end
             events = getdaqevents(obj);
             if ~exist('idx','var'), idx = 1:length(events); end
-            if 0<nargout, varargout{1} = showdaqevents(events,idx); else showdaqevents(events,idx); end
+            if 0<nargout, varargout{1} = showdaqevents(events,idx); else, showdaqevents(events,idx); end
         end
-        function marker_position = putmarker(obj)
-            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
+        function marker_position = frontmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,2);
         end
-        function [data,nsamps_from_marker] = getmarked(obj)
+        function [data,nsamps_from_marker] = peekfront(obj)
             if 1 < length(obj), error('OBJ must be a 1-by-1 analog input object.'); end
-            [data,nsamps_from_marker] = mdqmex(78,obj.AdaptorName,obj.DeviceID,obj.TaskID);
+            [data,nsamps_from_marker] = mdqmex(78,obj.AdaptorName,obj.DeviceID,obj.TaskID,true);
             data = data';
+        end
+        function marker_position = backmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,3);
+        end
+        function data = getback(obj)
+            if 1 < length(obj), error('OBJ must be a 1-by-1 analog input object.'); end
+            data = mdqmex(78,obj.AdaptorName,obj.DeviceID,obj.TaskID,false)';
         end
         function register(obj,name)
             if ~exist('name','var'), name = ''; end
@@ -462,7 +472,7 @@ classdef analoginput < dynamicprops
                     fields = properties(obj(1));
                     for m=1:length(fields)
                         propset = [fields{m} 'Set'];
-                        if isprop(obj(1),propset), out.(fields{m}) = obj(1).(propset); else out.(fields{m}) = {}; end
+                        if isprop(obj(1),propset), out.(fields{m}) = obj(1).(propset); else, out.(fields{m}) = {}; end
                     end
                     return;
                 case 2
@@ -489,7 +499,7 @@ classdef analoginput < dynamicprops
                 for n=1:length(fields)
                     field = fields{n};
                     if ~ischar(field), error('Invalid input argument type to ''set''.  Type ''help set'' for options.'); end
-                    if 1==size(vals,1), val = vals{1,n}; else val = vals{m,n}; end
+                    if 1==size(vals,1), val = vals{1,n}; else, val = vals{m,n}; end
                     
                     idx = strncmpi(proplist,field,length(field));
                     if 1~=sum(idx), error('The property, ''%s'', does not exist.',field); end

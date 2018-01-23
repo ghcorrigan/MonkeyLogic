@@ -33,10 +33,13 @@ classdef (ConstructOnLoad = true) mlconfig
         RemoteAlert
         InterTrialInterval
         SummarySceneDuringITI
+        NonStopRecording
         UserPlotFunction
         IO
         Touchscreen
+        RunMessageLoop
         USBJoystick
+        EyeTracker
         AIConfiguration
         AISampleRate
         AIOnlineSmoothing
@@ -142,11 +145,14 @@ classdef (ConstructOnLoad = true) mlconfig
             obj.RemoteAlert = false;
             obj.InterTrialInterval = 2000;
             obj.SummarySceneDuringITI = true;
+            obj.NonStopRecording = false;
             obj.UserPlotFunction = '';
 
             obj.IO = [];
             obj.Touchscreen = false;
+            obj.RunMessageLoop = false;
             obj.USBJoystick = 'None';
+            obj.EyeTracker = struct('Name','None','ID','','ViewPoint',[],'EyeLink',[]);
 
             obj.AIConfiguration = 'NonReferencedSingleEnded';
             obj.AISampleRate = 1000;

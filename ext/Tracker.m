@@ -5,6 +5,7 @@ classdef Tracker < mladapter
         DAQ
         TaskObject
         CalFun
+        DataSource
     end
     
     methods (Abstract)
@@ -15,16 +16,18 @@ classdef Tracker < mladapter
     
     methods
         function obj = Tracker(varargin)  % MLConfig, TaskObject, CalFun
-            if 3~=nargin && 4~=nargin, return, end
+            if 4~=nargin, return, end
             MLConfig = varargin{1};
             TaskObject = varargin{2};
             CalFun = varargin{3};
+            DataSource = double(varargin{4});
             
             obj.Success = true;
             obj.Screen = MLConfig.Screen;
             obj.DAQ = MLConfig.DAQ;
             obj.TaskObject = TaskObject;
             obj.CalFun = CalFun;
+            obj.DataSource = DataSource;
         end
         
         function init(~,~), end

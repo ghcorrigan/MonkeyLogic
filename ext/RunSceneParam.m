@@ -13,8 +13,7 @@ classdef RunSceneParam < handle
         EventMarker
         PhotoDiodeStatus
         
-        EyeTarget     % [x y] in degrees
-        EyeFixPeriod  % [start_time duration]
+        EyeTargetRecord     % [xdeg ydeg start_time duration]
         User
         
         trialtime
@@ -34,15 +33,8 @@ classdef RunSceneParam < handle
         end
         
         function set.EventMarker(obj,val)
-            if isempty(val), obj.EventMarker = []; else obj.EventMarker = [obj.EventMarker val]; end
+            if isempty(val), obj.EventMarker = []; else, obj.EventMarker = [obj.EventMarker val]; end
         end
-        function set.EyeTarget(obj,val)
-            if isempty(val), obj.EyeTarget = []; elseif isempty(obj.EyeTarget), obj.EyeTarget = val; end
-        end
-        function set.EyeFixPeriod(obj,val)
-            if isempty(val), obj.EyeFixPeriod = []; elseif isempty(obj.EyeFixPeriod), obj.EyeFixPeriod = val; end
-        end
-        
         function [s,t] = scene_time(obj)
             t = obj.trialtime();
             s = t - obj.SceneStartTime;
@@ -58,8 +50,7 @@ classdef RunSceneParam < handle
     methods (Hidden)
         function reset(obj)
             obj.EventMarker = [];
-            obj.EyeTarget = [];
-            obj.EyeFixPeriod = [];
+            obj.EyeTargetRecord = [];
         end
     end
 end

@@ -1,4 +1,4 @@
-function varargout = trialholder_OLD(MLConfig,TrialRecord,TaskObject,TrialData)
+function varargout = trialholder(MLConfig,TrialRecord,TaskObject,TrialData)
 % This is the code into which a timing script is embedded (by "embed_timingfile") to create the run-time trial function.
 %
 % See www.monkeylogic.org for more information.
@@ -6,7 +6,7 @@ function varargout = trialholder_OLD(MLConfig,TrialRecord,TaskObject,TrialData)
 %   Oct 22, 2016    This file is completely re-written by Jaewon Hwang.
 
 %% initialization
-global ML_global_timer ML_global_timer_offset ML_prev_eye_position %#ok<NUSED>
+global ML_global_timer ML_global_timer_offset ML_prev_eye_position ML_trialtime_offset ML_Clock %#ok<NUSED>
 if isempty(ML_global_timer), ML_global_timer = tic; end
 varargout{1} = [];
 
@@ -14,7 +14,7 @@ DAQ = MLConfig.DAQ;
 DAQ.simulated_input(-1);
 Screen = MLConfig.Screen;
 SIMULATION_MODE = TrialRecord.SimulationMode;
-if SIMULATION_MODE, DAQ.add_mouse(); end
+if SIMULATION_MODE, DAQ.add_mouse(); DAQ.create_simulated_output(); end
 
 % writes the Info field from the conditions file if it exists in TrialRecord
 Info = TrialRecord.CurrentConditionInfo;
@@ -354,7 +354,7 @@ ML_WarmingUp = false;
         end
         
         if 3==ML_RenderingState
-            mglpresent(2);
+            mglpresent(2,MLConfig.RunMessageLoop,SIMULATION_MODE);
             if isnan(ML_CurrentFrameNumber)
                 ML_CurrentFrameNumber = floor(trialtime()/ML_FrameLength);
             else
@@ -456,14 +456,15 @@ ML_WarmingUp = false;
                     if 0 == ml_nthreshold, error('*** The fixation radius is not specified ***'); end
                     ml_bhvanalyzer{ml_,4} = TaskObject.ScreenPosition(ml_bhvanalyzer{ml_,2},:);
                     ml_bhvanalyzer{ml_,6} = NaN(ml_ntargetobj,1);
-                    if ml_ntargetobj*2 ~= ml_nthreshold  % circle window
+                    if 1==ml_nthreshold || ml_ntargetobj==ml_nthreshold  % circle window
                         ml_bhvanalyzer{ml_,3}(end+1:ml_ntargetobj) = ml_bhvanalyzer{ml_,3}(end);
                         ml_bhvanalyzer{ml_,3} = ml_bhvanalyzer{ml_,3}(:);
                         ml_bhvanalyzer{ml_,5} = ml_bhvanalyzer{ml_,3} * ML_PixelsPerDegree;
                         for n=1:ml_ntargetobj, ml_bhvanalyzer{ml_,6}(n) = mgladdcircle([0 255 0], ml_bhvanalyzer{ml_,5}(n) .* [2 2], 10); end
                     else  % rect window
+                        if 2==ml_nthreshold, ml_bhvanalyzer{ml_,3} = repmat(ml_bhvanalyzer{ml_,3},ml_ntargetobj,1); end
                         ml_bhvanalyzer{ml_,5} = ml_bhvanalyzer{ml_,3} * ML_PixelsPerDegree;
-                        for n=1:ml_ntargetobj, ml_bhvanalyzer{ml_,6}(n) = mgladdbox(uint8([0 255 0]), ml_bhvanalyzer{ml_,5}(n,:), 10); end
+                        for n=1:ml_ntargetobj, ml_bhvanalyzer{ml_,6}(n) = mgladdbox([0 255 0], ml_bhvanalyzer{ml_,5}(n,:), 10); end
                         ml_bhvanalyzer{ml_,5} = [ml_bhvanalyzer{ml_,4} - ml_bhvanalyzer{ml_,5}/2 ml_bhvanalyzer{ml_,4} + ml_bhvanalyzer{ml_,5}/2]; 
                     end
                     mglsetorigin(ml_bhvanalyzer{ml_,6},ml_bhvanalyzer{ml_,4});
@@ -589,7 +590,7 @@ ML_WarmingUp = false;
             end
         end
 
-        if ~ml_earlybreak, ML_TotalTrackingTime = ML_TotalTrackingTime + ml_maxtime; else ML_TotalTrackingTime = ML_TotalTrackingTime + ml_rt; end
+        if ml_earlybreak, ML_TotalTrackingTime = ML_TotalTrackingTime + ml_rt; else ML_TotalTrackingTime = ML_TotalTrackingTime + ml_maxtime; end
     end
 
     %% function eventmarker
@@ -841,8 +842,6 @@ ML_WarmingUp = false;
     end
 
     %% function trialtime
-    ML_trialtime_offset = toc(ML_global_timer);
-    DAQ.init_timer(ML_global_timer,ML_trialtime_offset);
     function ml_t = trialtime(), ml_t = mdqmex(93); end  % in milliseconds
  
     %% function bhv_variable
@@ -942,12 +941,12 @@ ML_WarmingUp = false;
         % turn off the photodiode trigger so that it becomes black when the next trial begins.
         if 1 < MLConfig.PhotoDiodeTrigger
             mglactivategraphic([Screen.PhotodiodeWhite Screen.PhotodiodeBlack],[false true]);
-            mglrendergraphic(ML_CurrentFrameNumber,1,false);
+            mglrendergraphic(ML_CurrentFrameNumber,1,true);
             mglpresent(1);
         end
         
         TrialData.BehavioralCodes = struct('CodeTimes',[], 'CodeNumbers',[]);
-        TrialData.AnalogData = struct('SampleInterval',[],'Eye',[],'Joystick',[],'Mouse',[],'PhotoDiode',[]);
+        TrialData.AnalogData = struct('SampleInterval',[],'Eye',[],'EyeExtra',[],'Joystick',[],'Mouse',[],'PhotoDiode',[]);
         for ml_=1:DAQ.nGeneral, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = []; end
         
         if TrialRecord.TestTrial
@@ -956,26 +955,49 @@ ML_WarmingUp = false;
         end
         
         ml_SampleInterval = 1000 / MLConfig.AISampleRate;
-        ml_MinSamplesExpected = ceil(trialtime());
-        ml_SamplePoint = 1:ml_SampleInterval:ml_MinSamplesExpected;
-        if DAQ.isrunning
-            while DAQ.MinSamplesAvailable <= ml_MinSamplesExpected, end
-            stop(DAQ);
-        end
-        getdata(DAQ);
-        
         TrialData.AnalogData.SampleInterval = ml_SampleInterval;
-        if SIMULATION_MODE
-            if ~isempty(DAQ.Mouse)
-                TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse(ml_SamplePoint,:));
-                TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton(ml_SamplePoint,:)];
+        
+        if MLConfig.NonStopRecording
+            backmarker(DAQ);
+            ML_trialtime_offset = toc(ML_global_timer);
+            ML_Clock = clock;
+            getback(DAQ);
+            
+            if SIMULATION_MODE
+                if ~isempty(DAQ.Mouse)
+                    TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse);
+                    TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton];
+                end
+            else
+                if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye,ML_EyeOffset); end
+                if ~isempty(DAQ.EyeExtra), TrialData.AnalogData.EyeExtra = DAQ.EyeExtra; end
+                if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick,ML_JoyOffset); end
+                if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse) DAQ.MouseButton]; end
+                if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode; end
+                for ml_=DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}; end
             end
         else
-            if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye(ml_SamplePoint,:),ML_EyeOffset); end
-            if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick(ml_SamplePoint,:),ML_JoyOffset); end
-            if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse(ml_SamplePoint,:)) DAQ.MouseButton(ml_SamplePoint,:)]; end
-            if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode(ml_SamplePoint,:); end
-            for ml_ = DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}(ml_SamplePoint,:); end
+            ml_MinSamplesExpected = ceil(trialtime());
+            ml_SamplePoint = 1:ml_SampleInterval:ml_MinSamplesExpected;
+            if DAQ.isrunning
+                while DAQ.MinSamplesAvailable <= ml_MinSamplesExpected, end
+                stop(DAQ);
+            end
+            getdata(DAQ);
+
+            if SIMULATION_MODE
+                if ~isempty(DAQ.Mouse)
+                    TrialData.AnalogData.Eye = EyeCal.control2deg(DAQ.Mouse(ml_SamplePoint,:));
+                    TrialData.AnalogData.Mouse = [TrialData.AnalogData.Eye DAQ.MouseButton(ml_SamplePoint,:)];
+                end
+            else
+                if ~isempty(DAQ.Eye), TrialData.AnalogData.Eye = EyeCal.sig2deg(DAQ.Eye(ml_SamplePoint,:),ML_EyeOffset); end
+                if ~isempty(DAQ.EyeExtra), TrialData.AnalogData.EyeExtra = DAQ.EyeExtra(ml_SamplePoint,:); end
+                if ~isempty(DAQ.Joystick), TrialData.AnalogData.Joystick = JoyCal.sig2deg(DAQ.Joystick(ml_SamplePoint,:),ML_JoyOffset); end
+                if ~isempty(DAQ.Mouse), TrialData.AnalogData.Mouse = [EyeCal.subject2deg(DAQ.Mouse(ml_SamplePoint,:)) DAQ.MouseButton(ml_SamplePoint,:)]; end
+                if ~isempty(DAQ.PhotoDiode), TrialData.AnalogData.PhotoDiode = DAQ.PhotoDiode(ml_SamplePoint,:); end
+                for ml_=DAQ.general_available, TrialData.AnalogData.General.(sprintf('Gen%d',ml_)) = DAQ.General{ml_}(ml_SamplePoint,:); end
+            end
         end
         
         % eye & joy traces
@@ -983,15 +1005,14 @@ ML_WarmingUp = false;
         ml_joy_trace = NaN;
         ml_touch_trace = NaN;
         if MLConfig.SummarySceneDuringITI
-            ml_nSample = length(ml_SamplePoint);
             if ~isempty(TrialData.AnalogData.Eye)
                 ml_eye = EyeCal.deg2pix(TrialData.AnalogData.Eye);
-                ml_eye_trace = mgladdline(MLConfig.EyeTracerColor,ml_nSample,1,10);
+                ml_eye_trace = mgladdline(MLConfig.EyeTracerColor,size(ml_eye,1),1,10);
                 mglsetproperty(ml_eye_trace,'addpoint',ml_eye);
             end
             if ~isempty(TrialData.AnalogData.Joystick)
                 ml_joy = JoyCal.deg2pix(TrialData.AnalogData.Joystick);
-                ml_joy_trace = mgladdline(MLConfig.JoystickCursorColor,ml_nSample,1,10);
+                ml_joy_trace = mgladdline(MLConfig.JoystickCursorColor,size(ml_joy,1),1,10);
                 mglsetproperty(ml_joy_trace,'addpoint',ml_joy);
             end
             if ~isempty(TrialData.AnalogData.Mouse)
@@ -1003,7 +1024,7 @@ ML_WarmingUp = false;
                 end
                 ml_touch_trace = NaN(1,ml_ntouch);
                 ml_imdata = load_cursor(MLConfig.TouchCursorImage,MLConfig.TouchCursorShape,MLConfig.TouchCursorColor,MLConfig.TouchCursorSize);
-                for ml_ = 1:ml_ntouch, ml_touch_trace(ml_) = mgladdbitmap(ml_imdata,10); end
+                for ml_=1:ml_ntouch, ml_touch_trace(ml_) = mgladdbitmap(ml_imdata,10); end
                 mglsetorigin(ml_touch_trace,ml_touch);
             end
             mglactivategraphic(TaskObject.ID(ML_Visual),false);
@@ -1035,8 +1056,8 @@ ML_WarmingUp = false;
                 end
             end
         end
-        mglsetscreencolor(2,[0.25 0.25 0.25]);
-        mdqmex(104);
+        mglsetscreencolor(2,fi(MLConfig.NonStopRecording,[0 0.4 0.2],[0.25 0.25 0.25]));
+        mdqmex(104);  % ClearControlScreenEdge
         mglrendergraphic(ML_CurrentFrameNumber,2,false);
         mglpresent(2);
         mgldestroygraphic([ml_eye_trace ml_joy_trace ml_touch_trace ml_id(:)']);
@@ -1080,41 +1101,57 @@ end
 kbdflush;
 rt = NaN;
 
-start(DAQ);
+    function warming_up()
+        ML_WarmingUp = true;
+        ml_tflip = toggleobject(find(ML_Visual), 'status', 'on'); %#ok<NASGU>
+        for ml_ = 1:10
+            eyejoytrack('acquirefix',find(ML_Visual),1,20);
+            eyejoytrack('acquiretarget',find(ML_Visual),1,20);
+            eyejoytrack('acquiretouch',ML_ButtonsAvailable,[],20);
+            eyejoytrack('touchtarget',find(ML_Visual),1,20);
+            goodmonkey(20,'ML_WarmingUp',ML_WarmingUp,'NumReward',1);
+        end
+        toggleobject(find(ML_Visual), 'status', 'off');
+        mglsetproperty(TaskObject.ID(ML_Movie),'seek',0);
+        ML_WarmingUp = false;
 
-if TrialRecord.CurrentTrialNumber < 2
-    ML_WarmingUp = true;
-    ML_tflip = toggleobject(find(ML_Visual), 'status', 'on'); %#ok<NASGU>
-    for ML_ = 1:10
-        eyejoytrack('acquirefix',find(ML_Visual),1,20);
-        eyejoytrack('acquiretarget',find(ML_Visual),1,20);
-        eyejoytrack('acquiretouch',ML_ButtonsAvailable,[],20);
-        eyejoytrack('touchtarget',find(ML_Visual),1,20);
-        goodmonkey(20,'ML_WarmingUp',ML_WarmingUp,'NumReward',1);
+        ML_PdStatus = false;
+        if 1 < MLConfig.PhotoDiodeTrigger, mglactivategraphic([Screen.PhotodiodeWhite Screen.PhotodiodeBlack],[ML_PdStatus ~ML_PdStatus]); end
+        ML_RenderingState = 0;
+        ML_CurrentFrameNumber = 0;
+        ML_LastPresentTime = 0;
+        ML_GraphicsUsedInThisTrial = false(1,ML_nObject);
+        ML_TotalSkippedFrames = 0;
+        ML_ToggleCount = 0;
+        ML_TotalTrackingTime = 0;
+        ML_MaxCycleTime = 0;
+        ML_TotalAcquiredSamples = 0;
+        ML_EyeTargetIndex = 0;
+        ML_RewardCount = 0;
     end
-    toggleobject(find(ML_Visual), 'status', 'off');
-    mglsetproperty(TaskObject.ID(ML_Movie),'seek',0);
-    ML_WarmingUp = false;
 
-    ML_PdStatus = false;
-    if 1 < MLConfig.PhotoDiodeTrigger, mglactivategraphic([Screen.PhotodiodeWhite Screen.PhotodiodeBlack],[ML_PdStatus ~ML_PdStatus]); end
-    ML_RenderingState = 0;
-    ML_CurrentFrameNumber = 0;
-    ML_LastPresentTime = 0;
-    ML_GraphicsUsedInThisTrial = false(1,ML_nObject);
-    ML_TotalSkippedFrames = 0;
-    ML_ToggleCount = 0;
-    ML_TotalTrackingTime = 0;
-    ML_MaxCycleTime = 0;
-    ML_TotalAcquiredSamples = 0;
-    ML_EyeTargetIndex = 0;
-    ML_RewardCount = 0;
+if MLConfig.NonStopRecording
+    if TrialRecord.CurrentTrialNumber < 2
+        start(DAQ);
+        warming_up();
+
+        flushmarker(DAQ);
+        ML_trialtime_offset = toc(ML_global_timer);
+        ML_Clock = clock;
+        flushdata(DAQ);
+        ML_global_timer_offset = ML_trialtime_offset;
+    end
+    TrialData.TrialDateTime = ML_Clock;
+else
+    start(DAQ);
+    if TrialRecord.CurrentTrialNumber < 2, warming_up(); end
+
+    flushmarker(DAQ);
+    ML_trialtime_offset = toc(ML_global_timer);
+    TrialData.TrialDateTime = clock;
+    flushdata(DAQ);
+    if TrialRecord.CurrentTrialNumber < 2, ML_global_timer_offset = ML_trialtime_offset; end
 end
-
-flushdata(DAQ);
-ML_trialtime_offset = toc(ML_global_timer);
-TrialData.TrialDateTime = clock;
-if TrialRecord.CurrentTrialNumber < 2, ML_global_timer_offset = ML_trialtime_offset; end
 TrialData.AbsoluteTrialStartTime = (ML_trialtime_offset - ML_global_timer_offset) * 1000;
 DAQ.init_timer(ML_global_timer,ML_trialtime_offset);
 mglsetscreencolor(2,[0.1333 0.3333 0.5490]);

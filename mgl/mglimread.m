@@ -10,12 +10,6 @@ switch lower(e)
         
     otherwise
         [A,map,transparency] = imread(filename);
-        if ~isempty(map)
-            [m,n] = size(A);
-            map = uint8(255 * map);
-            A = reshape(map(A,:),m,n,3);
-        end
-        if ~isempty(transparency)
-            A = cat(3,transparency,A);
-        end
+        if ~isempty(map), A = ind2rgb(A,map); end
+        if ~isempty(transparency), A = cat(3,transparency,A); end
 end

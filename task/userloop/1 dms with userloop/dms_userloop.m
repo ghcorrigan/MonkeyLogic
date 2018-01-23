@@ -5,7 +5,7 @@ function [C,timingfile,userdefined_trialholder] = dms_userloop(MLConfig,TrialRec
 % number, etc.) on behalf of the conditions file, the condition selection
 % file, the block selection file and the error handling logic. It helps
 % users compose a task in a more flexible way, without being restricted
-% by MonkeyLogic's existing structure.
+% by the conditions file structure.
 %
 % Users can load a userloop file (*.m) from the conditions file selection
 % dialog in the main menu, as when loading a normal conditions file. The
@@ -27,10 +27,10 @@ function [C,timingfile,userdefined_trialholder] = dms_userloop(MLConfig,TrialRec
 %
 % Another important thing to know is that the userloop is called twice
 % before Trial 1 starts: once before the pause menu shows up (MonkeyLogic
-% does that, to retrive the timingfile name) and once immediately before
+% does that, to retrieve the timingfile name) and once immediately before
 % Trial 1. So be careful, when writing the code, not to waste your preset
 % conditions for the very first call. See the code below for a trick to
-% aviod this issue.
+% avoid this issue.
 %
 % To set the block number and the condition number of the next trial, call
 % the following methods.

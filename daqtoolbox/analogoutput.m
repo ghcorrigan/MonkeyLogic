@@ -203,9 +203,10 @@ classdef analogoutput < dynamicprops
                 mdqmex(57,obj(m).AdaptorName,obj(m).DeviceID,obj(m).SubsystemType,obj(m).TaskID);
             end
         end
-        function stop(obj)
+        function stop(obj,val)
+            if ~exist('val','var'), val = 0; end
             for m=1:length(obj)
-                mdqmex(58,obj(m).AdaptorName,obj(m).DeviceID,obj(m).SubsystemType,obj(m).TaskID);
+                mdqmex(58,obj(m).AdaptorName,obj(m).DeviceID,obj(m).SubsystemType,obj(m).TaskID,val);
             end
         end
         function tf = isrunning(obj)

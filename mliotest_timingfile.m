@@ -17,8 +17,14 @@ mglsetorigin(mgladdbox(eye_dim_color,eye_frame(3:4),4),eye_frame(1:2)+eye_frame(
 mglsetproperty(mgladdtext('Eye XY',4),'origin',[eye_frame(1)+eye_frame(3)/2 eye_frame(2)-gap],'halign',2,'valign',3,'fontsize',fontsize,'color',eye_dim_color);
 if DAQ.eye_present
     eye_device = DAQ.get_device('eye');
-    eyex = eye_device.EyeX.InputRange;
-    eyey = eye_device.EyeY.InputRange;
+    switch class(eye_device)
+        case 'analoginput'
+            eyex = eye_device.EyeX.InputRange;
+            eyey = eye_device.EyeY.InputRange;
+        otherwise
+            eyex = [-10 10];
+            eyey = [-10 10];
+    end
     eye_range = [eyex(2) -eyey(2)];
     mglsetproperty(mgladdtext(sprintf('%d',eyex(1)),4),'origin',[eye_frame(1) sum(eye_frame([2 4]))+gap],'halign',2,'valign',1,'fontsize',fontsize,'color',eye_dim_color);
     mglsetproperty(mgladdtext(sprintf('%d',eyex(2)),4),'origin',[sum(eye_frame([1 3])) sum(eye_frame([2 4]))+gap],'halign',2,'valign',1,'fontsize',fontsize,'color',eye_dim_color);
@@ -158,10 +164,11 @@ else
     mglsetproperty(mgladdtext('No TTL assigned',4),'origin',[140 by] * DPI_ratio,'halign',1,'valign',2,'fontsize',fontsize,'color',TTL_color);
 end
 
+mglsetproperty(mgladdtext('ESC',4),'origin',[412 590] * DPI_ratio,'valign',3,'fontsize',fontsize,'color',[1 1 1]);
 mglsetproperty(mgladdtext('Click the icons above to test STMs and TTLs. To quit, press ESC.',4),'origin',[10 590] * DPI_ratio,'valign',3,'fontsize',fontsize,'color',[0.5 0.5 0.5]);
 
 esc_size = [40 20];
-esc_center = [427 580];
+esc_center = [427 580*DPI_ratio];
 esc_pos = [esc_center esc_center] + [-esc_size esc_size]/2;
 % esc_id = mgladdbox([1 1 1],esc_size,4);
 % mglsetorigin(esc_id,esc_center * DPI_ratio);
@@ -251,7 +258,7 @@ while true
     end
     
     mglrendergraphic(0);
-    mglpresent;
+    mglpresent();
     
     if 0 < ngeneral
         count = count + 1;

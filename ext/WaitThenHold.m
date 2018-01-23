@@ -8,10 +8,15 @@ classdef WaitThenHold < mladapter
         Waiting  % status variable indicating whether we are still waiting for fixation
         AcquiredTime
     end
+    properties (Access = protected)
+        ST
+        EndTime
+    end
     
     methods
         function obj = WaitThenHold(varargin)
             obj = obj@mladapter(varargin{:});
+            obj.ST = get_adapter(obj,'SingleTarget');
         end
         function init(obj,p)
             obj.Adapter.init(p);
@@ -20,10 +25,11 @@ classdef WaitThenHold < mladapter
             obj.Running = true;
             obj.Waiting = true;
 			obj.AcquiredTime = [];
+            obj.EndTime = obj.HoldTime;
         end
         function fini(obj,p)
             obj.Adapter.fini(p);
-            if obj.Success, p.EyeFixPeriod = [obj.AcquiredTime 0] + obj.HoldTime/2; end
+            if obj.Success && strcmp(obj.Tracker.Signal,'Eye'), p.EyeTargetRecord = [obj.ST.Position [obj.AcquiredTime 0]+obj.HoldTime/2]; end
         end
         function continue_ = analyze(obj,p)
             obj.Adapter.analyze(p);
@@ -32,7 +38,7 @@ classdef WaitThenHold < mladapter
             % The lower-lever adapter (obj.Adapter) is FixateTarget of
             % which Success is true when the fixation is acquired.
             good = obj.Adapter.Success;  % is the subject fixating to the target?
-            elapsed = p.scene_time;      % time elapsed from the scene start
+            elapsed = p.scene_time();      % time elapsed from the scene start
 
             % If we are still waiting but the subject is not looking, check if
             % the wait time is over. If so, stop tracking and end the scene.
@@ -45,9 +51,9 @@ classdef WaitThenHold < mladapter
             % If we were waiting for fixation and the subject is looking now,
             % then indicate that we are not waiting and set the hold end time.
             if obj.Waiting && good
-                obj.AcquiredTime = obj.Adapter.Time;
+                obj.AcquiredTime = obj.ST.Time;
                 obj.Waiting = false;
-                obj.HoldTime = obj.HoldTime + elapsed;
+                obj.EndTime = obj.EndTime + elapsed;
             end
             
             % If the subject fixated but is not looking at the target anymore
@@ -63,7 +69,7 @@ classdef WaitThenHold < mladapter
             % behavior is detected and end the scene. Otherwise, keep
             % tracking.
             if ~obj.Waiting && good
-                if elapsed < obj.HoldTime
+                if elapsed < obj.EndTime
                     continue_ = true;
                 else
                     obj.Success = true;

@@ -35,6 +35,8 @@ io = [];           % IO panel user input cache
 trials_per_block = MLConfig.NumberOfTrialsToRunInThisBlock;
 datafilename_manually_typed = false;
 all_DAQ_accounted = true;
+hNonDAQ = struct;
+eyetrackers = {'None',''; 'Arrington ViewPoint EyeTracker','viewpoint'; 'SR Research EyeLink','eyelink'};
 
 % figure
 load('mlimagedata.mat','earth_image','ioheader_image','runbutton_image','runbuttondim_image','taskheader_image','threemonkeys_image','ttl_icon','videoheader_image','expand_icon','collapse_icon');
@@ -72,7 +74,7 @@ init();
         vars = MLConditions.UIVars;
         enable = fi(isconditionsfile(MLConditions),'on','off');
         set(findobj(hFig,'tag','TotalNumberOfConditions'),'string',num2str(vars.TotalNumberOfConditions));
-        if isconditionsfile(MLConditions), str = {vars.StimulusList.Label}; else str = vars.StimulusList; end
+        if isconditionsfile(MLConditions), str = {vars.StimulusList.Label}; else, str = vars.StimulusList; end
         set(findobj(hFig,'tag','StimulusList'),'enable',fi(isempty(vars.StimulusList),'off','on'),'string',str);
         set(findobj(hFig,'tag','StimulusTest'),'enable',enable);
         set(findobj(hFig,'tag','BlockList'),'enable',enable,'string',num2cell(vars.BlockList));
@@ -112,9 +114,9 @@ init();
         set(findobj(hFig,'tag','OpenRuntimeFolder'),'enable',fi(7==exist(MLPath.RunTimeDirectory,'file'),'on','off'));
         
         if isloaded(MLConditions)
-            set(findobj(hFig,'tag','RunButton'), 'enable','on', 'cdata',runbutton_image);
+            set(findobj(hFig,'tag','RunButton'),'enable','on','cdata',runbutton_image);
         else
-            set(findobj(hFig,'tag','RunButton'), 'enable','inactive', 'cdata',runbuttondim_image);
+            set(findobj(hFig,'tag','RunButton'),'enable','inactive','cdata',runbuttondim_image);
         end
         
         set(findobj(hFig,'tag','SaveSettings'),'enable',fi(2==exist(MLPath.ConfigurationFile,'file') && isequal(MLConfig,old_MLConfig),'off','on'));
@@ -177,11 +179,9 @@ init();
 
     function update_ioUI()
         set(findobj(hIO,'tag','EditBehavioralCodesFile'),'enable',fi(isempty(MLPath.BehavioralCodesFile),'off','on'));
-        set(findobj(hIO,'tag','Touchscreen'),'value',MLConfig.Touchscreen);
-        MLConfig.USBJoystick = set_listbox_value(findobj(hIO,'tag','USBJoystick'),MLConfig.USBJoystick);
         
         MLConfig.AIConfiguration = set_listbox_value(findobj(hIO,'tag','AIConfiguration'),MLConfig.AIConfiguration);
-        MLConfig.AISampleRate = str2double(set_listbox_value(findobj(hIO,'tag','AISampleRate'),num2str(MLConfig.AISampleRate)));
+        MLConfig.AISampleRate = str2double(set_listbox_value(findobj(hIO,'tag','AISampleRate'),num2str(fi(MLConfig.NonStopRecording,1000,MLConfig.AISampleRate))));
         set(findobj(hIO,'tag','AIOnlineSmoothing'),'value',MLConfig.AIOnlineSmoothing);
         set(findobj(hIO,'tag','AIOnlineSmoothingWindow'),'string',num2str(MLConfig.AIOnlineSmoothingWindow));
         
@@ -235,6 +235,7 @@ init();
         set(findobj(hTask,'tag','EditAlertFunc'),'enable',enable);
         set(findobj(hTask,'tag','InterTrialInterval'),'string',num2str(MLConfig.InterTrialInterval));
         set(findobj(hTask,'tag','SummarySceneDuringITI'),'value',MLConfig.SummarySceneDuringITI);
+        set(findobj(hTask,'tag','NonStopRecording'),'value',MLConfig.NonStopRecording);
         MLConfig.UserPlotFunction = MLPath.validate_path(MLConfig.UserPlotFunction);
         set(findobj(hTask,'tag','UserPlotFunction'),'string',strip_path(MLConfig.UserPlotFunction,'User plot function'));
     end
@@ -243,7 +244,7 @@ init();
         obj_tag = get(hObject,'tag');
         switch obj_tag
             case {'SubjectScreenDevice','ForcedUseOfFallbackScreen','PhotoDiodeTrigger', ...
-                    'ErrorLogic','SummarySceneDuringITI', ...
+                    'ErrorLogic','SummarySceneDuringITI','NonStopRecording', ...
                     'Touchscreen','AIOnlineSmoothing','RewardPolarity','StrobeTrigger','EyeCalibration','JoystickCalibration'}
                 MLConfig.(obj_tag) = get(gcbo,'value');
             case {'CondLogic','BlockLogic'}
@@ -304,13 +305,12 @@ init();
                             y = pos(2) - h/2;
 
                             hDlg = figure;
-                            fontsize = 9;
                             bgcolor = [0.9255 0.9137 0.8471];
-                            set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Choose the config to import', 'color',bgcolor, 'windowstyle','modal');
+                            set(hDlg,'position',[x y w h],'menubar','none','numbertitle','off','name','Choose the config to import','color',bgcolor,'windowstyle','modal');
 
-                            uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-80 10 70 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                            uicontrol('parent',hDlg, 'style','text', 'position',[10 h-30 230 25], 'string','Choose a configuration to import', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','center');
-                            uicontrol('parent',hDlg, 'style','listbox', 'position',[10 48 230 125+nb*16], 'tag','ConfigList', 'string',c, 'fontsize',fontsize);
+                            uicontrol('parent',hDlg,'style','pushbutton','position',[w-80 10 70 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                            uicontrol('parent',hDlg,'style','text','position',[10 h-30 230 25],'string','Choose a configuration to import','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','center');
+                            uicontrol('parent',hDlg,'style','listbox','position',[10 48 230 125+nb*16],'tag','ConfigList','string',c,'fontsize',fontsize);
                             uiwait(hDlg);
 
                             if ishandle(hDlg)
@@ -362,7 +362,7 @@ init();
                     fig_pos = [fx fy fw fh];
 
                     figure;
-                    set(gcf, 'position',fig_pos, 'color',[0 0 0], 'numbertitle','off', 'name','MonkeyLogic Latency Test');
+                    set(gcf,'position',fig_pos,'color',[0 0 0],'numbertitle','off','name','MonkeyLogic Latency Test');
                     
                     maxtime = 1000;
                     color = { [.8 .8 0],[.8 .8 0] };
@@ -373,14 +373,14 @@ init();
                         x = result{1,m}{1}(3:end) - result{1,m}{1}(2);
                         x = x(x<=maxtime);
                         y = diff(result{1,m}{1}(2:length(x)+2));
-                        plot(x, y,'-', 'LineWidth',1, 'Color',color{m});
+                        plot(x, y,'-','LineWidth',1,'Color',color{m});
                         ymax = max([ymax ceil(max(y))]);
                     end
-                    set(gca, 'box','on', 'color',[0 0 0], 'xlim',[-10 maxtime], 'ylim',[-0.1 ymax], 'xcolor',[1 1 1], 'ycolor',[1 1 1], 'yscale','linear');
+                    set(gca,'box','on','color',[0 0 0],'xlim',[-10 maxtime],'ylim',[-0.1 ymax],'xcolor',[1 1 1],'ycolor',[1 1 1],'yscale','linear');
                     xlabel('Cycle Number');
                     ylabel('Cycle Latency (milliseconds)');
                     htxt = title('Static Picture Display Results');
-                    set(htxt, 'color', [1 1 1]);
+                    set(htxt,'color',[1 1 1]);
                     
                     subplot(2,1,2); hold on;
                     ymax = 0;
@@ -388,20 +388,20 @@ init();
                         x = result{2,m}{1}(3:end) - result{2,m}{1}(2);
                         x = x(x<=maxtime);
                         y = diff(result{2,m}{1}(2:length(x)+2));
-                        plot(x, y,'-', 'LineWidth',1, 'Color',color{m});
+                        plot(x, y,'-','LineWidth',1,'Color',color{m});
                         ymax = max([ymax ceil(max(y))]);
                     end
                     for m=2
                         x = result{2,m}{2}(2:end) - result{2,m}{1}(2);
                         x = x(x<=maxtime);
                         y = ymax*ones(size(x));
-                        stem(x,y, 'Marker','none', 'LineWidth', 0.5, 'Color',[1 0 0]);
+                        stem(x,y,'Marker','none','LineWidth',0.5,'Color',[1 0 0]);
                     end
-                    set(gca, 'box','on', 'color',[0 0 0], 'xlim',[-10 maxtime], 'ylim',[-0.1 ymax], 'xcolor',[1 1 1], 'ycolor',[1 1 1], 'yscale','linear');
+                    set(gca,'box','on','color',[0 0 0],'xlim',[-10 maxtime],'ylim',[-0.1 ymax],'xcolor',[1 1 1],'ycolor',[1 1 1],'yscale','linear');
                     xlabel('Cycle Number');
                     ylabel('Cycle Latency (milliseconds)');
                     htxt = title('Movie Display Results');
-                    set(htxt, 'color', [1 1 1]);
+                    set(htxt,'color',[1 1 1]);
                 end
             case 'EditBehavioralCodesFile', system(MLPath.BehavioralCodesFile);
             case 'EditRewardFunc', system(MLPath.RewardFunction);
@@ -473,26 +473,25 @@ init();
                     npanel = 5;
                     if 2 < ceil(nport/npanel), npanel = 10; end
                     w = 100 + 55 * fi(0==floor(nport/npanel),nport,npanel) - 50 * fi(1==nport,0,1); h = 60 + 120 * ceil(nport/npanel);
-                    xymouse = get(0, 'PointerLocation');
+                    xymouse = get(0,'PointerLocation');
                     x = xymouse(1) - fi(325<w,w-325,w);
                     y = xymouse(2) + 170 - h;
                     
                     hDlg = figure;
-                    fontsize = 9;
                     bgcolor = [0.9255 0.9137 0.8471];
-                    set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Line panel', 'color',bgcolor, 'windowstyle','modal');
+                    set(hDlg,'position',[x y w h],'menubar','none','numbertitle','off','name','Line panel','color',bgcolor,'windowstyle','modal');
                     
                     hListbox = zeros(1,nport);
                     for m=1:nport
                         x = w - 55 * mod(m-1,npanel) - 55; y = 45 + 120 * floor((m-1)/npanel);
                         lines = IOBoard(io.Board).DIOInfo{io.Channel(m)+1,1};
-                        if 1==mod(m,5), uicontrol('parent',hDlg, 'style','text', 'position',[10 y+35 40 22], 'string','Lines', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left'); end
-                        uicontrol('parent',hDlg, 'style','text', 'position',[x-5-45*fi(1==nport,1,0) y+90 55 22], 'string',sprintf('Port%d',io.Channel(m)), 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-                        hListbox(m) = uicontrol('parent',hDlg, 'style','listbox', 'position',[x-45*fi(1==nport,1,0) y 45 95], 'string',num2cell(lines), 'fontsize',fontsize, 'min',1, 'max',fi(1==io.Spec{3}(2),length(lines),1));
+                        if 1==mod(m,5), uicontrol('parent',hDlg,'style','text','position',[10 y+35 40 22],'string','Lines','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left'); end
+                        uicontrol('parent',hDlg,'style','text','position',[x-5-45*fi(1==nport,1,0) y+90 55 22],'string',sprintf('Port%d',io.Channel(m)),'backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                        hListbox(m) = uicontrol('parent',hDlg,'style','listbox','position',[x-45*fi(1==nport,1,0) y 45 95],'string',num2cell(lines),'fontsize',fontsize,'min',1,'max',fi(1==io.Spec{3}(2),length(lines),1));
                     end
-                    uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-140 10 60 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                    uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-70 10 60 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                    if 1<nport, uicontrol('parent',hDlg, 'style','text', 'position',[0 h-25 w 20], 'string', fi(2==nport,'<- Most sig. bit | Least sig. bit ->','<- Most significant bit | Least significant bit ->'), 'backgroundcolor',bgcolor, 'fontsize',7); end
+                    uicontrol('parent',hDlg,'style','pushbutton','position',[w-140 10 60 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                    uicontrol('parent',hDlg,'style','pushbutton','position',[w-70 10 60 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                    if 1<nport, uicontrol('parent',hDlg,'style','text','position',[0 h-25 w 20],'string',fi(2==nport,'<- Most sig. bit | Least sig. bit ->','<- Most significant bit | Least significant bit ->'),'backgroundcolor',bgcolor,'fontsize',7); end
                     uiwait(hDlg);
                     
                     if ~ishandle(hDlg), return, end
@@ -514,6 +513,206 @@ init();
             case 'IOClear'
                 clear_IO(io.Spec{1});
                 update_boards();
+            case 'NonDAQDevices'
+                if any(strcmpi('joystick',daqhwinfo('all'))), info = daqhwinfo('joystick'); joyid = ['None'; info.InstalledBoardIds']; else, joyid = {'None'}; end
+                if isempty(MLConfig.EyeTracker.ViewPoint)
+                    MLConfig.EyeTracker.ViewPoint.IP_address = '169.254.110.159';
+                    MLConfig.EyeTracker.ViewPoint.Port = '5000';
+                    MLConfig.EyeTracker.ViewPoint.Source = [ 0,2,0.5,20; 0,10,0.5,-20; 0,1,0,1; 0,1,0,1; 0,1,0,1; 0,1,0,1; 0,1,0,1; 0,1,0,1 ];
+                end
+                if isempty(MLConfig.EyeTracker.EyeLink)
+                    MLConfig.EyeTracker.EyeLink.IP_address = '100.1.1.1';
+                    MLConfig.EyeTracker.EyeLink.Filter = 0;     % 0: off, 1: std, 2: extra
+                    MLConfig.EyeTracker.EyeLink.PupilSize = 2;  % 1: area, 2: diameter
+                    MLConfig.EyeTracker.EyeLink.Source = [ 2,2,0,-0.0005; 2,5,0,0.0005; 2,1,0,1; 2,1,0,1; 2,1,0,1; 2,1,0,1 ];
+                end
+                supported = mdqmex(50,2);
+                ntracker = size(eyetrackers,1);
+                row = true(ntracker,1);
+                for m=2:ntracker, row(m) = ismember(eyetrackers{m,2},supported); end
+                eyetrackers = eyetrackers(row,:);
+
+                w = 345 ; h = 510;
+                xymouse = get(0,'PointerLocation');
+                x = xymouse(1) - w;
+                y = xymouse(2) - 310;
+                
+                hDlg = figure;
+                bgcolor = [0.9255 0.9137 0.8471];
+                set(hDlg,'tag','NonDAQSettings','position',[x y w h],'menubar','none','numbertitle','off','name','Non-DAQ Device Settings','color',bgcolor,'windowstyle','modal');
+                callback = @update_nondaqUI;
+
+                x0 = 10;
+                y0 = h;
+                uicontrol('parent',hDlg,'style','text','position',[x0 y0-40 200 25],'string','Touchscreen','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                hNonDAQ.Touchscreen(1) = uicontrol('parent',hDlg,'style','checkbox','position', [x0+125 y0-30 15 15],'value',MLConfig.Touchscreen,'backgroundcolor',bgcolor,'callback',callback);
+                hNonDAQ.Touchscreen(2) = uicontrol('parent',hDlg,'style','text','position',[x0+160 y0-40 200 25],'string','Run Message Loop','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.Touchscreen(3) = uicontrol('parent',hDlg,'style','checkbox','position', [x0+280 y0-30 15 15],'value',MLConfig.RunMessageLoop,'backgroundcolor',bgcolor);
+                uicontrol('parent',hDlg,'style','text','position',[x0 y0-70 200 25],'string','USB Joystick','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                hNonDAQ.USBJoystick = uicontrol('parent',hDlg,'style','popupmenu','position',[x0+125 y0-62 55 22],'string',joyid,'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','text','position',[x0 y0-100 200 25],'string','TCP/IP Eye Tracker','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                hNonDAQ.EyeTracker = uicontrol('parent',hDlg,'style','popupmenu','position',[x0+125 y0-92 200 22],'string',eyetrackers(:,1),'fontsize',fontsize,'callback',callback);
+                MLConfig.USBJoystick = set_listbox_value(hNonDAQ.USBJoystick,MLConfig.USBJoystick);
+                MLConfig.EyeTracker.Name = set_listbox_value(hNonDAQ.EyeTracker,MLConfig.EyeTracker.Name);
+
+                hNonDAQ.ViewPoint.IP_address(1) = uicontrol('parent',hDlg,'style','text','position',[x0+125 y0-130 200 25],'string','IP address','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.ViewPoint.IP_address(2) = uicontrol('parent',hDlg,'style','edit','position',[x0+195 y0-123 130 25],'string',MLConfig.EyeTracker.ViewPoint.IP_address,'fontsize',fontsize);
+                hNonDAQ.ViewPoint.Port(1) = uicontrol('parent',hDlg,'style','text','position',[x0+125 y0-160 200 25],'string','Port','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.ViewPoint.Port(2) = uicontrol('parent',hDlg,'style','edit','position',[x0+195 y0-153 130 25],'string',MLConfig.EyeTracker.ViewPoint.Port,'fontsize',fontsize);
+                x1 = x0;
+                y1 = y0-185;
+                viewpoint_eye = {'Eye A','Eye B'};
+                viewpoint_source = {'None', ...
+                    'X Gaze Point','X Gaze Point Smoothed','X Gaze Point Corrected','X Gaze Angle','X Gaze Angle Smoothed','X Gaze Angle Corrected','X Pupil Size','X Velocity', ...
+                    'Y Gaze Point','Y Gaze Point Smoothed','Y Gaze Point Corrected','Y Gaze Angle','Y Gaze Angle Smoothed','Y Gaze Angle Corrected','Y Pupil Size','Y Velocity', ...
+                    'Pupil Angle','Pupil Aspect Ratio','Total Velocity','Torsion','Drift','Fixation Time','Data Quality'};
+                hNonDAQ.ViewPoint.Source(1,1) = uicontrol('parent',hDlg,'style','text','position',[x1 y1 60 22],'string','Eye','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.ViewPoint.Source(1,2) = uicontrol('parent',hDlg,'style','text','position',[x1+65 y1 170 22],'string','Source','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.ViewPoint.Source(1,3) = uicontrol('parent',hDlg,'style','text','position',[x1+235 y1 50 22],'string','Offset','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.ViewPoint.Source(1,4) = uicontrol('parent',hDlg,'style','text','position',[x1+280 y1 50 22],'string','Gain','backgroundcolor',bgcolor,'fontsize',fontsize);
+                for m=1:8
+                    for n=1:4
+                        x2 = x1;
+                        y2 = y1 - 30*m + 10;
+                        if 2==m, enable = 'off'; else, enable = 'on'; end
+                        switch n
+                            case 1
+                                switch m
+                                    case 1, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2 y2 60 22],'string',viewpoint_eye,'fontsize',fontsize,'enable',enable,'callback',callback);
+                                    otherwise, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2 y2 60 22],'string',viewpoint_eye,'fontsize',fontsize,'enable',enable);
+                                end
+                            case 2
+                                switch m
+                                    case 1, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 170 22],'string',viewpoint_source(2:4),'fontsize',fontsize,'enable',enable,'callback',callback);
+                                    case 2, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 170 22],'string',viewpoint_source(10:12),'fontsize',fontsize,'enable',enable);
+                                    otherwise, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 170 22],'string',viewpoint_source,'fontsize',fontsize,'enable',enable);
+                                end
+                            case 3, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','edit','position',[x2+240 y2-1 40 24],'fontsize',fontsize);
+                            case 4, hNonDAQ.ViewPoint.Source(m+1,n) = uicontrol('parent',hDlg,'style','edit','position',[x2+285 y2-1 40 24],'fontsize',fontsize);
+                        end
+                    end
+                end
+                hNonDAQ.ViewPoint.Note(1) = uicontrol('parent',hDlg,'style','text','position',[x2 y2-30 400 22],'string','Note 1. Output = (Raw - Offset) * Gain','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.ViewPoint.Note(2) = uicontrol('parent',hDlg,'style','text','position',[x2 y2-50 400 22],'string','Note 2. To invert output, put a negative gain.','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                for m=1:8
+                    for n=1:4
+                        switch n
+                            case 1, set(hNonDAQ.ViewPoint.Source(m+1,n),'value',MLConfig.EyeTracker.ViewPoint.Source(m,n)+1);
+                            case 2
+                                switch m
+                                    case 1, set(hNonDAQ.ViewPoint.Source(m+1,n),'value',MLConfig.EyeTracker.ViewPoint.Source(m,n)-1);
+                                    case 2, set(hNonDAQ.ViewPoint.Source(m+1,n),'value',MLConfig.EyeTracker.ViewPoint.Source(m,n)-9);
+                                    otherwise, set(hNonDAQ.ViewPoint.Source(m+1,n),'value',MLConfig.EyeTracker.ViewPoint.Source(m,n));
+                                end
+                            case {3,4}, set(hNonDAQ.ViewPoint.Source(m+1,n),'string',MLConfig.EyeTracker.ViewPoint.Source(m,n));
+                        end
+                    end
+                end
+                hNonDAQ.ViewPoint.Test(1) = uicontrol('parent',hDlg,'style','text','position',[x0+10 y0-130 80 25],'string','','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                hNonDAQ.ViewPoint.Test(2) = uicontrol('parent',hDlg,'style','pushbutton','position',[x0+25 y0-155 50 25],'string','Test','fontsize',fontsize,'callback',@test_eyetracker_connection);
+                
+                hNonDAQ.EyeLink.IP_address(1) = uicontrol('parent',hDlg,'style','text','position',[x0+125 y0-130 200 25],'string','IP address','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.EyeLink.IP_address(2) = uicontrol('parent',hDlg,'style','edit','position',[x0+195 y0-123 130 25],'string',MLConfig.EyeTracker.EyeLink.IP_address,'fontsize',fontsize);
+                hNonDAQ.EyeLink.Filter(1) = uicontrol('parent',hDlg,'style','text','position',[x0+125 y0-160 200 25],'string','Filter','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.EyeLink.Filter(2) = uicontrol('parent',hDlg,'style','popupmenu','position',[x0+195 y0-153 130 25],'string',{'Off','Standard','Extra'},'value',MLConfig.EyeTracker.EyeLink.Filter+1,'fontsize',fontsize);
+                hNonDAQ.EyeLink.PupilSize(1) = uicontrol('parent',hDlg,'style','text','position',[x0+125 y0-190 200 25],'string','Pupil Size','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.EyeLink.PupilSize(2) = uicontrol('parent',hDlg,'style','popupmenu','position',[x0+195 y0-183 130 25],'string',{'Area','Diameter'},'value',MLConfig.EyeTracker.EyeLink.PupilSize,'fontsize',fontsize);
+                x1 = x0;
+                y1 = y0-215;
+                eyelink_eye = {'Left','Right','Auto'};
+                eyelink_source = {'None','X Raw','X Head Referenced','X Gaze','Y Raw','Y Head Referenced','Y Gaze','Pupil Size'};
+                hNonDAQ.EyeLink.Source(1,1) = uicontrol('parent',hDlg,'style','text','position',[x1 y1 60 22],'string','Eye','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.EyeLink.Source(1,2) = uicontrol('parent',hDlg,'style','text','position',[x1+65 y1 150 22],'string','Source','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.EyeLink.Source(1,3) = uicontrol('parent',hDlg,'style','text','position',[x1+215 y1 60 22],'string','Offset','backgroundcolor',bgcolor,'fontsize',fontsize);
+                hNonDAQ.EyeLink.Source(1,4) = uicontrol('parent',hDlg,'style','text','position',[x1+270 y1 60 22],'string','Gain','backgroundcolor',bgcolor,'fontsize',fontsize);
+                for m=1:6
+                    for n=1:4
+                        x2 = x1;
+                        y2 = y1 - 30*m + 10;
+                        if 2==m, enable = 'off'; else, enable = 'on'; end
+                        switch n
+                            case 1
+                                switch m
+                                    case 1, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2 y2 60 22],'string',eyelink_eye,'fontsize',fontsize,'enable',enable,'callback',callback);
+                                    otherwise, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2 y2 60 22],'string',eyelink_eye,'fontsize',fontsize,'enable',enable);
+                                end
+                            case 2
+                                switch m
+                                    case 1, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 150 22],'string',eyelink_source(2),'fontsize',fontsize,'enable','off');
+                                    case 2, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 150 22],'string',eyelink_source(5),'fontsize',fontsize,'enable','off');
+                                    otherwise, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','popupmenu','position',[x2+65 y2 150 22],'string',eyelink_source,'fontsize',fontsize,'enable',enable);
+                                end
+                            case 3, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','edit','position',[x2+220 y2-1 50 24],'fontsize',fontsize);
+                            case 4, hNonDAQ.EyeLink.Source(m+1,n) = uicontrol('parent',hDlg,'style','edit','position',[x2+275 y2-1 50 24],'fontsize',fontsize);
+                        end
+                    end
+                end
+                hNonDAQ.EyeLink.Note(1) = uicontrol('parent',hDlg,'style','text','position',[x2 y2-30 400 22],'string','Note 1. In the binocular setting, ''Auto'' will be the Left eye.','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.EyeLink.Note(2) = uicontrol('parent',hDlg,'style','text','position',[x2 y2-50 400 22],'string','Note 2. Output = (Raw - Offset) * Gain','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                hNonDAQ.EyeLink.Note(3) = uicontrol('parent',hDlg,'style','text','position',[x2 y2-70 400 22],'string','Note 3. To invert output, put a negative gain.','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+                for m=1:6
+                    for n=1:4
+                        switch n
+                            case 1, set(hNonDAQ.EyeLink.Source(m+1,n),'value',MLConfig.EyeTracker.EyeLink.Source(m,n)+1);
+                            case 2
+                                switch m
+                                    case 1, set(hNonDAQ.EyeLink.Source(m+1,n),'value',MLConfig.EyeTracker.EyeLink.Source(m,n)-1);
+                                    case 2, set(hNonDAQ.EyeLink.Source(m+1,n),'value',MLConfig.EyeTracker.EyeLink.Source(m,n)-4);
+                                    otherwise, set(hNonDAQ.EyeLink.Source(m+1,n),'value',MLConfig.EyeTracker.EyeLink.Source(m,n));
+                                end
+                            case {3,4}, set(hNonDAQ.EyeLink.Source(m+1,n),'string',MLConfig.EyeTracker.EyeLink.Source(m,n));
+                        end
+                    end
+                end
+                hNonDAQ.EyeLink.Test(1) = uicontrol('parent',hDlg,'style','text','position',[x0+10 y0-130 80 25],'string','','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+                hNonDAQ.EyeLink.Test(2) = uicontrol('parent',hDlg,'style','pushbutton','position',[x0+25 y0-155 50 25],'string','Test','fontsize',fontsize,'callback',@test_eyetracker_connection);
+                
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-160 10 70 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-80 10 70 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                update_nondaqUI();
+                uiwait(hDlg);
+                
+                if ~ishandle(hDlg), return, end
+                MLConfig.Touchscreen = logical(get(hNonDAQ.Touchscreen(1),'value'));
+                MLConfig.RunMessageLoop = logical(get(hNonDAQ.Touchscreen(3),'value'));
+                MLConfig.USBJoystick = get_listbox_value(hNonDAQ.USBJoystick);
+                MLConfig.EyeTracker.Name = get_listbox_value(hNonDAQ.EyeTracker);
+                MLConfig.EyeTracker.ID = eyetrackers{get(hNonDAQ.EyeTracker,'value'),2};
+
+                MLConfig.EyeTracker.ViewPoint.IP_address = get(hNonDAQ.ViewPoint.IP_address(2),'string');
+                MLConfig.EyeTracker.ViewPoint.Port = get(hNonDAQ.ViewPoint.Port(2),'string');
+                for m=1:8
+                    for n=1:4
+                        switch n
+                            case 1, MLConfig.EyeTracker.ViewPoint.Source(m,n) = get(hNonDAQ.ViewPoint.Source(m+1,n),'value')-1;
+                            case 2
+                                switch m
+                                    case 1, MLConfig.EyeTracker.ViewPoint.Source(m,n) = get(hNonDAQ.ViewPoint.Source(m+1,n),'value')+1;
+                                    case 2, MLConfig.EyeTracker.ViewPoint.Source(m,n) = get(hNonDAQ.ViewPoint.Source(m+1,n),'value')+9;
+                                    otherwise, MLConfig.EyeTracker.ViewPoint.Source(m,n) = get(hNonDAQ.ViewPoint.Source(m+1,n),'value');
+                                end
+                            case {3,4}, MLConfig.EyeTracker.ViewPoint.Source(m,n) = str2double(get(hNonDAQ.ViewPoint.Source(m+1,n),'string'));
+                        end
+                    end
+                end
+                MLConfig.EyeTracker.EyeLink.IP_address = get(hNonDAQ.EyeLink.IP_address(2),'string');
+                MLConfig.EyeTracker.EyeLink.Filter = get(hNonDAQ.EyeLink.Filter(2),'value')-1;
+                MLConfig.EyeTracker.EyeLink.PupilSize = get(hNonDAQ.EyeLink.PupilSize(2),'value');
+                for m=1:6
+                    for n=1:4
+                        switch n
+                            case 1, MLConfig.EyeTracker.EyeLink.Source(m,n) = get(hNonDAQ.EyeLink.Source(m+1,n),'value')-1;
+                            case 2
+                                switch m
+                                    case 1, MLConfig.EyeTracker.EyeLink.Source(m,n) = get(hNonDAQ.EyeLink.Source(m+1,n),'value')+1;
+                                    case 2, MLConfig.EyeTracker.EyeLink.Source(m,n) = get(hNonDAQ.EyeLink.Source(m+1,n),'value')+4;
+                                    otherwise, MLConfig.EyeTracker.EyeLink.Source(m,n) = get(hNonDAQ.EyeLink.Source(m+1,n),'value');
+                                end
+                            case {3,4}, MLConfig.EyeTracker.EyeLink.Source(m,n) = str2double(get(hNonDAQ.EyeLink.Source(m+1,n),'string'));
+                        end
+                    end
+                end
+                close(hDlg);
             case 'IOTestButton'
                 set(gcbo,'enable','off');
                 try
@@ -535,21 +734,20 @@ init();
                 y = xymouse(2);
                 
                 hDlg = figure;
-                fontsize = 9;
                 bgcolor = [0.9255 0.9137 0.8471];
-                set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Strobe timing specification', 'color',bgcolor, 'windowstyle','modal');
+                set(hDlg, 'position',[x y w h],'menubar','none','numbertitle','off','name','Strobe timing specification','color',bgcolor,'windowstyle','modal');
                 
                 load('mlimagedata.mat','strobe_timing');
-                uicontrol('style','pushbutton', 'position',[0 0 265 305], 'tag','StrobeTiming', 'enable','inactive', 'cdata',strobe_timing);
-                uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-160 10 70 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-80 10 70 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                uicontrol('parent',hDlg, 'style','text', 'position',[280 260 20 25], 'string','T1', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-                uicontrol('parent',hDlg, 'style','text', 'position',[280 230 20 25], 'string','T2', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','right');
-                uicontrol('parent',hDlg, 'style','edit', 'position',[310 260+4 50 25], 'tag','T1', 'string',num2str(MLConfig.StrobePulseSpec.T1), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[310 230+4 50 25], 'tag','T2', 'string',num2str(MLConfig.StrobePulseSpec.T2), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','text', 'position',[365 260 40 25], 'string','usec', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[365 230 40 25], 'string','usec', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','pushbutton', 'position',[280 200 90 25], 'string','Set default', 'fontsize',fontsize, 'callback','set([findobj(''tag'',''T1'') findobj(''tag'',''T2'')],''string'',''125'')');
+                uicontrol('style','pushbutton','position',[0 0 265 305],'tag','StrobeTiming','enable','inactive','cdata',strobe_timing);
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-160 10 70 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-80 10 70 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                uicontrol('parent',hDlg,'style','text','position',[280 260 20 25],'string','T1','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+                uicontrol('parent',hDlg,'style','text','position',[280 230 20 25],'string','T2','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','right');
+                uicontrol('parent',hDlg,'style','edit','position',[310 260+4 50 25],'tag','T1','string',num2str(MLConfig.StrobePulseSpec.T1),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[310 230+4 50 25],'tag','T2','string',num2str(MLConfig.StrobePulseSpec.T2),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','text','position',[365 260 40 25],'string','usec','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[365 230 40 25],'string','usec','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','pushbutton','position',[280 200 90 25],'string','Set default','fontsize',fontsize,'callback','set([findobj(''tag'',''T1'') findobj(''tag'',''T2'')],''string'',''125'')');
                 uiwait(hDlg);
                 
                 if ~ishandle(hDlg), return, end
@@ -588,24 +786,23 @@ init();
                 y = xymouse(2);
                 
                 hDlg = figure;
-                fontsize = 9;
                 bgcolor = [0.9255 0.9137 0.8471];
-                set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Reward variables', 'color',bgcolor, 'windowstyle','modal');
+                set(hDlg, 'position',[x y w h],'menubar','none','numbertitle','off','name','Reward variables','color',bgcolor,'windowstyle','modal');
                 
-                uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-160 10 70 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-                uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-80 10 70 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 195 120 25], 'string','JuiceLine', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 165 120 25], 'string','Duration (ms)', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 135 120 25], 'string','Number of Pulses', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 105 140 25], 'string','Time b/w Pulses (ms)', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 75 120 25], 'string','Trigger Voltage', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','text', 'position',[10 45 120 25], 'string','Custom Variables', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-                uicontrol('parent',hDlg, 'style','edit', 'position',[140 198 100 25], 'tag','RewardJuiceLine', 'string',num2str(MLConfig.RewardFuncArgs.JuiceLine), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[140 168 100 25], 'tag','RewardDuration', 'string',num2str(MLConfig.RewardFuncArgs.Duration), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[140 138 100 25], 'tag','RewardNumReward', 'string',num2str(MLConfig.RewardFuncArgs.NumReward), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[140 108 100 25], 'tag','RewardPauseTime', 'string',num2str(MLConfig.RewardFuncArgs.PauseTime), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[140 78 100 25], 'tag','RewardTriggerVal', 'string',num2str(MLConfig.RewardFuncArgs.TriggerVal), 'fontsize',fontsize);
-                uicontrol('parent',hDlg, 'style','edit', 'position',[120 48 120 25], 'tag','RewardCustom', 'string',MLConfig.RewardFuncArgs.Custom, 'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-160 10 70 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+                uicontrol('parent',hDlg,'style','pushbutton','position',[w-80 10 70 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+                uicontrol('parent',hDlg,'style','text','position',[10 195 120 25],'string','JuiceLine','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[10 165 120 25],'string','Duration (ms)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[10 135 120 25],'string','Number of Pulses','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[10 105 140 25],'string','Time b/w Pulses (ms)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[10 75 120 25],'string','Trigger Voltage','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','text','position',[10 45 120 25],'string','Custom Variables','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+                uicontrol('parent',hDlg,'style','edit','position',[140 198 100 25],'tag','RewardJuiceLine','string',num2str(MLConfig.RewardFuncArgs.JuiceLine),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[140 168 100 25],'tag','RewardDuration','string',num2str(MLConfig.RewardFuncArgs.Duration),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[140 138 100 25],'tag','RewardNumReward','string',num2str(MLConfig.RewardFuncArgs.NumReward),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[140 108 100 25],'tag','RewardPauseTime','string',num2str(MLConfig.RewardFuncArgs.PauseTime),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[140 78 100 25],'tag','RewardTriggerVal','string',num2str(MLConfig.RewardFuncArgs.TriggerVal),'fontsize',fontsize);
+                uicontrol('parent',hDlg,'style','edit','position',[120 48 120 25],'tag','RewardCustom','string',MLConfig.RewardFuncArgs.Custom,'fontsize',fontsize);
                 uiwait(hDlg);
                 
                 if ~ishandle(hDlg), return, end
@@ -625,7 +822,7 @@ init();
                     kbdflush;
                     for m=1:r.NumReward
                         DAQ.goodmonkey(r.Duration,'juiceline',r.JuiceLine,'numreward',1,'eval',r.Custom);
-                        mlmessage('JuiceLine %d, Duration %d ms (%d/%d)',r.JuiceLine,r.Duration,m,r.NumReward);
+                        fprintf('JuiceLine %d, Duration %d ms (%d/%d)\n',r.JuiceLine,r.Duration,m,r.NumReward);
                         ml_kb = kbdgetkey; if 1==ml_kb, mlmessage('Reward Test: aborted by user','e'); break, end
                         if m < r.NumReward, mdqmex(102,r.PauseTime); end
                     end
@@ -780,7 +977,7 @@ init();
                                 movie_playback(id);
                             else
                                 mglrendergraphic;
-                                mglpresent;
+                                mglpresent();
                                 keypress = []; kbdinit; [~,button] = getsample(mouse);
                                 while isempty(keypress) && ~any(button), keypress = kbdgetkey; [~,button] = getsample(mouse); end
                             end
@@ -868,11 +1065,6 @@ init();
                         error('Joystick signals are not calibrated yet. Calibrate them first or choose ''Raw Signal''');
                     end
                     
-                    %======================================================
-                    % Checks for an existing file with the same name as the
-                    % one automatically generated. If it exists, open
-                    % question dialog (questdlg) to ask the user whether to
-                    % keep the old file or delete it. 
                     datafile = [MLPath.ExperimentDirectory MLConfig.FormattedName MLConfig.Filetype];
                     if 2==exist(datafile,'file')
                         newfilepath = datafile;
@@ -899,10 +1091,10 @@ init();
                                 datafile = newfilepath;
                         end
                     end
-                    %======================================================
                     
-                    %creates DAQ and Screen objects; the create functions
-                    %are in the mldaq.m and mlscreen.m files respectively
+                    adapter_dir = [MLPath.BaseDirectory 'ext'];
+                    mlminifier([tempdir 'mladapters'],adapter_dir);
+                    
                     create(DAQ,MLConfig);
                     create(Screen,MLConfig);
                     if all_DAQ_accounted, savecfg(MLPath.ConfigurationFile); end  % ensure the existence of the configuration file
@@ -938,7 +1130,7 @@ init();
                     screen_top = screen_pos(2) + screen_pos(4);
                     if screen_top < top, y = screen_top - h - 30; end
 					hVideo = figure;
-                    set(hVideo, 'position',[x y w h], 'tag','VideoSettingWindow', 'closerequestfcn', @close_video_setting, 'menubar','none', 'numbertitle','off', 'name','Video Settings', 'color',figure_bgcolor);
+                    set(hVideo,'position',[x y w h],'tag','VideoSettingWindow','closerequestfcn',@close_video_setting,'menubar','none','numbertitle','off','name','Video Settings','color',figure_bgcolor);
                     menu_video(5,505);
                     set(findobj(hFig,'tag','VideoSetting'),'string','Close');
                 else
@@ -958,7 +1150,7 @@ init();
                     screen_top = screen_pos(2) + screen_pos(4);
                     if screen_top < top, y = screen_top - h - 30; end
 					hIO = figure;
-                    set(hIO, 'position',[x y w h], 'tag','IOSettingWindow', 'closerequestfcn', @close_io_setting, 'menubar','none', 'numbertitle','off', 'name','I/O Settings', 'color',figure_bgcolor);
+                    set(hIO,'position',[x y w h],'tag','IOSettingWindow','closerequestfcn',@close_io_setting,'menubar','none','numbertitle','off','name','I/O Settings','color',figure_bgcolor);
                     menu_io(5,600);
                     set(findobj(hFig,'tag','IOSetting'),'string','Close');
                 else
@@ -977,7 +1169,7 @@ init();
                     if screen_right < x, x = screen_right; end
                     if y < screen_pos(2), y = screen_pos(2); end
 					hTask = figure;
-                    set(hTask, 'position',[x y w h], 'tag','TaskSettingWindow', 'closerequestfcn', @close_task_setting, 'menubar','none', 'numbertitle','off', 'name','Task Settings', 'color',figure_bgcolor);
+                    set(hTask,'position',[x y w h],'tag','TaskSettingWindow','closerequestfcn',@close_task_setting,'menubar','none','numbertitle','off','name','Task Settings','color',figure_bgcolor);
                     menu_task(5,163);
                     set(findobj(hFig,'tag','TaskSetting'),'string','Close');
                 else
@@ -985,6 +1177,52 @@ init();
                 end
         end
         update_UI();
+    end
+
+    function update_nondaqUI(varargin)
+        eyetracker = eyetrackers{get(hNonDAQ.EyeTracker,'value'),2};
+        set(hNonDAQ.Touchscreen(2:3),'enable',fi(get(hNonDAQ.Touchscreen(1),'value'),'on','off'));
+        set(hNonDAQ.Touchscreen(3),'value',fi(get(hNonDAQ.Touchscreen(1),'value'),get(hNonDAQ.Touchscreen(3),'value'),0));
+        for m=fieldnames(hNonDAQ.ViewPoint)', set(hNonDAQ.ViewPoint.(m{1}),'visible','off'); end
+        for m=fieldnames(hNonDAQ.EyeLink)', set(hNonDAQ.EyeLink.(m{1}),'visible','off'); end
+        switch eyetracker
+            case 'viewpoint'
+                for m=fieldnames(hNonDAQ.ViewPoint)', set(hNonDAQ.ViewPoint.(m{1}),'visible','on'); end
+                set(hNonDAQ.ViewPoint.Source(3,1),'value',get(hNonDAQ.ViewPoint.Source(2,1),'value'));
+                set(hNonDAQ.ViewPoint.Source(3,2),'value',get(hNonDAQ.ViewPoint.Source(2,2),'value'));
+            case 'eyelink'
+                for m=fieldnames(hNonDAQ.EyeLink)', set(hNonDAQ.EyeLink.(m{1}),'visible','on'); end
+                set(hNonDAQ.EyeLink.Source(3,1),'value',get(hNonDAQ.EyeLink.Source(2,1),'value'));
+        end
+    end
+    function test_eyetracker_connection(varargin)
+        id = eyetrackers{get(hNonDAQ.EyeTracker,'value'),2};
+        if isempty(id), return, end
+            
+        eye = eyetracker(id);
+        switch id
+            case 'viewpoint'
+                eye.setting('Port',get(hNonDAQ.ViewPoint.Port(2),'string'));
+                eye.IP_address = get(hNonDAQ.ViewPoint.IP_address(2),'string');
+                try
+                    eye.Source = [ 0,2,0.5,20 ];
+                    connected = eye.Connected;
+                catch
+                    connected = false;
+                end
+                set(hNonDAQ.ViewPoint.Test(1),'string',fi(connected,'Connected!!!','Failed!!!'),'foregroundcolor',fi(connected,[0 1 0],[1 0 0]));
+            case 'eyelink'
+                eye.IP_address = get(hNonDAQ.EyeLink.IP_address(2),'string');
+                try
+                    eye.Source = [ 2,2,0,-0.00004 ];
+                    connected = eye.Connected;
+                catch
+                    connected = false;
+                end
+                set(hNonDAQ.EyeLink.Test(1),'string',fi(connected,'Connected!!!','Failed!!!'),'foregroundcolor',fi(connected,[0 1 0],[1 0 0]));
+            otherwise, error('Unknown TCP/IP eye tracker type!!!');
+        end
+        delete(eye);
     end
 
     function valid = assign_IO(entry)
@@ -1119,7 +1357,7 @@ init();
         channels = IOBoard(io.Board).Channel{io.Subsystem};
         if 3==io.Subsystem
             direction = fi(1==io.Spec{3}(1),'out','in');
-            channels = channels(~cellfun(@isempty,IOBoard(io.Board).DIOInfo(:,1)) & ~cellfun(@isempty,strfind(IOBoard(io.Board).DIOInfo(:,2),direction)));
+            channels = channels(~cellfun(@isempty,IOBoard(io.Board).DIOInfo(:,1)) & ~cellfun(@isempty,strfind(IOBoard(io.Board).DIOInfo(:,2),direction))); %#ok<STRCLFH>
         end
         set(findobj(hIO,'tag','Channels'),'string',num2cell(channels),'value',1,'min',1,'max',fi(3==io.Subsystem & 1==io.Spec{3}(2),length(channels),1));
     end
@@ -1173,7 +1411,7 @@ init();
             tic;
             mglrendergraphic(frame_number);
             rendering_time = toc * 1000;
-            mglpresent;
+            mglpresent();
             frame_number = frame_number + 1;
             keypress = kbdgetkey;
             [~,button] = getsample(mouse);
@@ -1205,14 +1443,13 @@ init();
             end
             
             w = 635 ; h = 480;
-            xymouse = get(0, 'PointerLocation');
+            xymouse = get(0,'PointerLocation');
             x = xymouse(1);
             y = xymouse(2) - h/2;
             
             hDlg = figure;
-            fontsize = 9;
             bgcolor = [0.9255 0.9137 0.8471];
-            set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Block Chart', 'color',bgcolor, 'windowstyle','modal');
+            set(hDlg,'position',[x y w h],'menubar','none','numbertitle','off','name','Block Chart','color',bgcolor,'windowstyle','modal');
             
             h = pcolor(bc);
             set(h,'buttondownfcn',@chart_blocks);
@@ -1226,14 +1463,14 @@ init();
             else
                 shading('faceted');
             end
-            set(gca,'units','pixel','position',[50 50 360 360],'xtick', 1.5:xspace:numconds+0.5,'ytick',1.5:yspace:numblocks+0.5,'xticklabel',xticks,'yticklabel',yticks,'ydir','reverse','xaxislocation','top');
+            set(gca,'units','pixel','position',[50 50 360 360],'xtick',1.5:xspace:numconds+0.5,'ytick',1.5:yspace:numblocks+0.5,'xticklabel',xticks,'yticklabel',yticks,'ydir','reverse','xaxislocation','top');
             h(1) = xlabel('Condition #');
             h(2) = ylabel('Block #');
-            set(h, 'fontsize', 12, 'fontweight', 'bold');
+            set(h,'fontsize',12,'fontweight','bold');
             
-            uicontrol('parent',hDlg, 'style','text', 'position',[425 385 200 60], 'string',['Click on a condition to the left' char(10) 'for details'], 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-            uicontrol('parent',hDlg, 'style','listbox', 'position',[425 50 200 360], 'tag','taskobjects', 'string','TaskObject List...', 'fontsize',fontsize);
-            uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-90 10 80 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
+            uicontrol('parent',hDlg,'style','text','position',[425 385 200 60],'string',['Click on a condition to the left' char(10) 'for details'],'backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+            uicontrol('parent',hDlg,'style','listbox','position',[425 50 200 360],'tag','taskobjects','string','TaskObject List...','fontsize',fontsize);
+            uicontrol('parent',hDlg,'style','pushbutton','position',[w-90 10 80 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
             uiwait(hDlg);
             if ~ishandle(hDlg), return, end
             close(hDlg);
@@ -1249,15 +1486,14 @@ init();
         y = xymouse(2);
         
         hDlg = figure;
-        fontsize = 9;
         bgcolor = [0.9255 0.9137 0.8471];
-        set(hDlg, 'position',[x y w h], 'menubar','none', 'numbertitle','off', 'name','Reward variables', 'color',bgcolor, 'windowstyle','modal');
+        set(hDlg,'position',[x y w h],'menubar','none','numbertitle','off','name','Reward variables','color',bgcolor,'windowstyle','modal');
         
         blocks = MLConditions.UIVars.BlockList;
-        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-140 10 60 25], 'string','Done', 'fontsize',fontsize, 'callback','uiresume(gcbf);');
-        uicontrol('parent',hDlg, 'style','pushbutton', 'position',[w-70 10 60 25], 'string','Cancel', 'fontsize',fontsize, 'callback','close(gcbf);');
-        uicontrol('parent',hDlg, 'style','text', 'position',[0 45 155 126], 'string',fi(multiselect,'Blocks to Run','First Block'), 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        hlist = uicontrol('parent',hDlg, 'style','listbox', 'position',[50 45 60 106], 'min',1, 'max',fi(multiselect,length(blocks),1), 'string',fi(multiselect,num2cell(blocks),['TBD' num2cell(blocks)]), 'fontsize',fontsize);
+        uicontrol('parent',hDlg,'style','pushbutton','position',[w-140 10 60 25],'string','Done','fontsize',fontsize,'callback','uiresume(gcbf);');
+        uicontrol('parent',hDlg,'style','pushbutton','position',[w-70 10 60 25],'string','Cancel','fontsize',fontsize,'callback','close(gcbf);');
+        uicontrol('parent',hDlg,'style','text','position',[0 45 155 126],'string',fi(multiselect,'Blocks to Run','First Block'),'backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        hlist = uicontrol('parent',hDlg,'style','listbox','position',[50 45 60 106],'min',1,'max',fi(multiselect,length(blocks),1),'string',fi(multiselect,num2cell(blocks),['TBD' num2cell(blocks)]),'fontsize',fontsize);
         uiwait(hDlg);
         
         if ~ishandle(hDlg), val = old_val; return, end
@@ -1313,8 +1549,11 @@ init();
         if verLessThan('matlab','7.12'), error('NIMH MonkeyLogic requires MATLAB 7.12 (R2011a) or later. Please upgrade your MATLAB first.'); end
         if ~usejava('swing'), error('Java feature ''swing'' must be enabled.'); end
         
+        adapter_dir = [tempdir 'mladapters'];
+        if ~exist(adapter_dir,'dir'), mkdir(adapter_dir); end
         MLPath.BaseDirectory = mfilename('fullpath');
-        addpath(MLPath.BaseDirectory,[MLPath.BaseDirectory 'daqtoolbox'],[MLPath.BaseDirectory 'mgl'],[MLPath.BaseDirectory 'kbd'],[MLPath.BaseDirectory 'ext'],[MLPath.BaseDirectory 'ext' filesep 'SlackMatlab']);
+        addpath(MLPath.BaseDirectory,[MLPath.BaseDirectory 'daqtoolbox'],[MLPath.BaseDirectory 'mgl'],[MLPath.BaseDirectory 'kbd'], adapter_dir, ...
+            [MLPath.BaseDirectory 'ext' filesep 'playback'],[MLPath.BaseDirectory 'ext' filesep 'SlackMatlab']);
         
         switch computer
             case 'PCWIN64', arch = { '64-bit', 'x64' };
@@ -1356,7 +1595,7 @@ init();
             error(msg);
         end
         
-        if verLessThan('matlab','7.14'), RandStream.setDefaultStream(RandStream('mt19937ar', 'seed', sum(100*clock))); else RandStream.setGlobalStream(RandStream('mt19937ar', 'seed', sum(100*clock))); end
+        if verLessThan('matlab','7.14'), RandStream.setDefaultStream(RandStream('mt19937ar','seed',sum(100*clock))); else RandStream.setGlobalStream(RandStream('mt19937ar','seed',sum(100*clock))); end
         
         daqreset; IOBoard = get_board_info();
         MLConfig.MLVersion = fileread([MLPath.BaseDirectory 'NIMH_MonkeyLogic_version.txt']);
@@ -1445,126 +1684,126 @@ init();
                 h = findobj('tag',associated_figures{m});
                 if ~isempty(h), delete(h); end
             end
-            set(hFig, 'closerequestfcn', 'closereq');
+            set(hFig,'closerequestfcn','closereq');
             close(hFig);
         end
         
         figsize = [fx fy fw fh];
         hFig = figure;
-        set(hFig, 'tag','mlmainmenu', 'numbertitle','off', 'name',sprintf('NIMH MonkeyLogic 2 (%s)',MLConfig.MLVersion), 'menubar','none', 'position',figsize, 'resize','off', 'color',figure_bgcolor);
-        set(hFig, 'closerequestfcn', @closeDlg);
+        set(hFig,'tag','mlmainmenu','numbertitle','off','name',sprintf('NIMH MonkeyLogic 2 (%s)',MLConfig.MLVersion),'menubar','none','position',figsize,'resize','off','color',figure_bgcolor);
+        set(hFig,'closerequestfcn',@closeDlg);
         
         x = x0 + 305; y = fh-94;
-        uicontrol('style','pushbutton', 'position',[x y 280 90], 'cdata',threemonkeys_image, 'callback','web(''http://www.brown.edu/Research/monkeylogic/'',''-browser'')', 'tooltip','Go to the MonkeyLogic website');
+        uicontrol('style','pushbutton','position',[x y 280 90],'cdata',threemonkeys_image,'callback','web(''http://www.brown.edu/Research/monkeylogic/'',''-browser'')','tooltip','Go to the MonkeyLogic website');
         if collapsed_menu
-            uicontrol('style','pushbutton', 'position',[x+255 y+65 25 25], 'tag','ExpandedMenu', 'cdata',expand_icon, 'callback',callbackfunc, 'tooltip','Expand the menu');
+            uicontrol('style','pushbutton','position',[x+255 y+65 25 25],'tag','ExpandedMenu','cdata',expand_icon,'callback',callbackfunc,'tooltip','Expand the menu');
         else
-            uicontrol('style','pushbutton', 'position',[x+255 y+65 25 25], 'tag','CollapsedMenu', 'cdata',collapse_icon, 'callback',callbackfunc, 'tooltip','Collapse the menu');
+            uicontrol('style','pushbutton','position',[x+255 y+65 25 25],'tag','CollapsedMenu','cdata',collapse_icon,'callback',callbackfunc,'tooltip','Collapse the menu');
         end
         
         x = x0; y = fh-126; bgcolor = figure_bgcolor;
-        uicontrol('style','text', 'position',[x+50 y+104 200 21], 'string','Messages from MonkeyLogic', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        hMessagebox = uicontrol('style','list', 'position',[x y 300 110], 'string',{'<html><font color="gray">>> End of the messages</font></html>'}, 'backgroundcolor',[1 1 1], 'fontsize',fontsize);
+        uicontrol('style','text','position',[x+50 y+104 200 21],'string','Messages from MonkeyLogic','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        hMessagebox = uicontrol('style','list','position',[x y 300 110],'string',{'<html><font color="gray">>> End of the messages</font></html>'},'backgroundcolor',[1 1 1],'fontsize',fontsize);
         if ~isempty(message_str), set(hMessagebox,'string',message_str,'value',length(message_str)); end
 
         x = x0 + 5; y = y0; bgcolor = 0.85 * figure_bgcolor;
-        uicontrol('style','frame', 'position',[x-5 y-4 300 53], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','pushbutton', 'position',[x y 230 44], 'tag','LoadConditionsFile', 'backgroundcolor',purple_bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+235 y+22 55 22], 'string','Help', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback','web(''http://www.brown.edu/Research/monkeylogic/conditionsfiles.html'',''-browser'')', 'tooltip',['Go to the online document' char(10) 'of the conditions file']);
-        uicontrol('style','pushbutton', 'position',[x+235 y 55 22], 'tag','EditConditionsFile', 'string','Edit', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Edit the conditions file');
+        uicontrol('style','frame','position',[x-5 y-4 300 53],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','pushbutton','position',[x y 230 44],'tag','LoadConditionsFile','backgroundcolor',purple_bgcolor,'fontsize',fontsize,'fontweight','bold','callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+235 y+22 55 22],'string','Help','backgroundcolor',bgcolor,'fontsize',fontsize,'callback','web(''http://www.brown.edu/Research/monkeylogic/conditionsfiles.html'',''-browser'')','tooltip',['Go to the online document' char(10) 'of the conditions file']);
+        uicontrol('style','pushbutton','position',[x+235 y 55 22],'tag','EditConditionsFile','string','Edit','fontsize',fontsize,'callback',callbackfunc,'tooltip','Edit the conditions file');
         x = x0; y = y - 120;
         h = subplot('position',[0.2 0 0.1 0.1]);
         mglimage(earth_image);
-        set(h, 'tag','StimulusFigure', 'units','pixel', 'position',[x+210 y+26 90 90], 'xtick',[], 'ytick',[], 'box','on');
-        uicontrol('style','frame', 'position',[x y 300 26], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','frame', 'position',[x y 210 116], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
+        set(h,'tag','StimulusFigure','units','pixel','position',[x+210 y+26 90 90],'xtick',[],'ytick',[],'box','on');
+        uicontrol('style','frame','position',[x y 300 26],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y 210 116],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
         bgcolor = figure_bgcolor;
-        uicontrol('style','frame', 'position',[x+300 y 5 26], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x+300 y 5 26],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
         x = x0 + 5; bgcolor = 0.85 * figure_bgcolor;
-        uicontrol('style','text', 'position',[x y+94 200 22], 'string','Stimulus list', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x y 200 100], 'tag','StimulusList', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+205 y 90 22], 'tag','StimulusTest', 'string','Test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Test the selected stimlus');
-        uicontrol('style','frame', 'position',[x-5 y-225 300 225], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
+        uicontrol('style','text','position',[x y+94 200 22],'string','Stimulus list','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x y 200 100],'tag','StimulusList','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+205 y 90 22],'tag','StimulusTest','string','Test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Test the selected stimlus');
+        uicontrol('style','frame','position',[x-5 y-225 300 225],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
 
         x = x0; y = y - 28;
-        uicontrol('style','text', 'position',[x+72 y+3 200 19], 'string','Total # of cond. in this file', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+240 y+3 55 22], 'tag','TotalNumberOfConditions', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x+72 y+3 200 19],'string','Total # of cond. in this file','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+240 y+3 55 22],'tag','TotalNumberOfConditions','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
         bgcolor = 0.5 * figure_bgcolor;
-        uicontrol('style','frame', 'position',[x y-100 300 102], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','frame', 'position',[x y-100 69 126], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y-100 300 102],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y-100 69 126],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
         x = x0 + 5; fgcolor = [1 1 1];
-        uicontrol('style','text', 'position',[x y+3 60 22], 'string','Blocks', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x y-97 60 106], 'tag','BlockList', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+3 60 22],'string','Blocks','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x y-97 60 106],'tag','BlockList','fontsize',fontsize,'callback',callbackfunc);
         x = x0; y = y - 25;
-        uicontrol('style','text', 'position',[x+72 y 200 22], 'string','Total # of cond. in this block', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+240 y+3 55 22], 'tag','TotalNumberOfConditionsInThisBlock', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x+72 y 200 22],'string','Total # of cond. in this block','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+240 y+3 55 22],'tag','TotalNumberOfConditionsInThisBlock','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x+72 y 200 22], 'string','# of trials to run in this block', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+240 y+3 55 22], 'tag','NumberOfTrialsToRunInThisBlock', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','The block switches after this number of trials');
+        uicontrol('style','text','position',[x+72 y 200 22],'string','# of trials to run in this block','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+240 y+3 55 22],'tag','NumberOfTrialsToRunInThisBlock','fontsize',fontsize,'callback',callbackfunc,'tooltip','The block switches after this number of trials');
         y = y - 25;
-        uicontrol('style','text', 'position',[x+72 y 200 22], 'string','Count only correct trials', 'backgroundcolor',bgcolor, 'foregroundcolor',fgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','checkbox', 'position',[x+240 y+6 15 15], 'tag','CountOnlyCorrectTrials', 'backgroundcolor',bgcolor, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x+72 y 200 22],'string','Count only correct trials','backgroundcolor',bgcolor,'foregroundcolor',fgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','checkbox','position',[x+240 y+6 15 15],'tag','CountOnlyCorrectTrials','backgroundcolor',bgcolor,'callback',callbackfunc);
         x = x0 + 5; y = y - 22;
-        uicontrol('style','pushbutton', 'position',[x+65 y 110 22], 'tag','ChartBlocks', 'string','Chart blocks', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+180 y 110 22], 'tag','ApplyToAll', 'string','Apply to all', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+65 y 110 22],'tag','ChartBlocks','string','Chart blocks','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+180 y 110 22],'tag','ApplyToAll','string','Apply to all','fontsize',fontsize,'callback',callbackfunc);
         y = y - 30; bgcolor = 0.85 * figure_bgcolor;
-        uicontrol('style','text', 'position',[x y 105 22], 'string','Blocks to run', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+85 y+3 145 22], 'tag','BlocksToRun', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+235 y+3 55 22], 'tag','ChooseBlocksToRun', 'string','Choose', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 105 22],'string','Blocks to run','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+85 y+3 145 22],'tag','BlocksToRun','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+235 y+3 55 22],'tag','ChooseBlocksToRun','string','Choose','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','First block to run', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+105 y+3 55 22], 'tag','FirstBlockToRun', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+235 y+3 55 22], 'tag','ChooseFirstBlockToRun', 'string','Choose', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 140 22],'string','First block to run','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+105 y+3 55 22],'tag','FirstBlockToRun','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+235 y+3 55 22],'tag','ChooseFirstBlockToRun','string','Choose','fontsize',fontsize,'callback',callbackfunc);
         y = y - 40;
-        uicontrol('style','text', 'position',[x y+17 50 20], 'string','Timing', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','text', 'position',[x y-2 40 20], 'string','files', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x+45 y 185 40], 'tag','TimingFiles', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+235 y+20 55 20], 'string','Help', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback','web(''http://www.brown.edu/Research/monkeylogic/timingscripts.html'',''-browser'')', 'tooltip',['Go to the online document' char(10) 'of the timing file']);
-        uicontrol('style','pushbutton', 'position',[x+235 y 55 20], 'tag','EditTimingFiles', 'string','Edit', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Edit the selected timing file');
+        uicontrol('style','text','position',[x y+17 50 20],'string','Timing','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','text','position',[x y-2 40 20],'string','files','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x+45 y 185 40],'tag','TimingFiles','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+235 y+20 55 20],'string','Help','backgroundcolor',bgcolor,'fontsize',fontsize,'callback','web(''http://www.brown.edu/Research/monkeylogic/timingscripts.html'',''-browser'')','tooltip',['Go to the online document' char(10) 'of the timing file']);
+        uicontrol('style','pushbutton','position',[x+235 y 55 20],'tag','EditTimingFiles','string','Edit','fontsize',fontsize,'callback',callbackfunc,'tooltip','Edit the selected timing file');
      
         x = x1 + 5; y = y1; bgcolor = figure_bgcolor;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Total # of trials to run', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+140 y+3 55 22], 'tag','TotalNumberOfTrialsToRun', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','The task stops when the trial count reaches this number');
+        uicontrol('style','text','position',[x y 140 22],'string','Total # of trials to run','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+140 y+3 55 22],'tag','TotalNumberOfTrialsToRun','fontsize',fontsize,'callback',callbackfunc,'tooltip','The task stops when the trial count reaches this number');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Total # of blocks to run', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+140 y+3 55 22], 'tag','TotalNumberOfBlocksToRun', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','The task stops when the block count reaches this number');
+        uicontrol('style','text','position',[x y 140 22],'string','Total # of blocks to run','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+140 y+3 55 22],'tag','TotalNumberOfBlocksToRun','fontsize',fontsize,'callback',callbackfunc,'tooltip','The task stops when the block count reaches this number');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Experiment name', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+110 y+3 180-d 22], 'tag','ExperimentName', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 140 22],'string','Experiment name','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+110 y+3 180-d 22],'tag','ExperimentName','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Investigator', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+110 y+3 180-d 22], 'tag','Investigator', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 140 22],'string','Investigator','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+110 y+3 180-d 22],'tag','Investigator','fontsize',fontsize,'callback',callbackfunc);
         bgcolor = purple_bgcolor;
-        uicontrol('style','frame', 'position',[x-5 y-135 300-d 135], 'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x-5 y-135 300-d 135],'backgroundcolor',bgcolor);
         y = y - 30;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Subject name', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+100 y+3 190-d 22], 'tag','SubjectName', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 140 22],'string','Subject name','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+100 y+3 190-d 22],'tag','SubjectName','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 100 22], 'string','Filename format', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+100 y+3 190-d 22], 'tag','FilenameFormat', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip',['expname or ename: Experiment Name' char(10) 'yourname or yname: Investigator' char(10) 'condname or cname: Conditions file name' char(10) 'subjname or sname: Subject name' char(10) 'yyyy: Year in full (1990, 2002)' char(10) 'yy: Year in two digits (90, 02)' char(10) 'mmm: Month using first three letters (Mar, Dec)' char(10) 'mm: Month in two digits (03, 12)' char(10) 'ddd: Day using first three letters (Mon, Tue)' char(10) 'dd: Day in two digits (05, 20)' char(10) 'HH: Hour in two digits (05, 24)' char(10) 'MM: Minute in two digits (12, 02)' char(10) 'SS: Second in two digits (07, 59)']);
+        uicontrol('style','text','position',[x y 100 22],'string','Filename format','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+100 y+3 190-d 22],'tag','FilenameFormat','fontsize',fontsize,'callback',callbackfunc,'tooltip',['expname or ename: Experiment Name' char(10) 'yourname or yname: Investigator' char(10) 'condname or cname: Conditions file name' char(10) 'subjname or sname: Subject name' char(10) 'yyyy: Year in full (1990, 2002)' char(10) 'yy: Year in two digits (90, 02)' char(10) 'mmm: Month using first three letters (Mar, Dec)' char(10) 'mm: Month in two digits (03, 12)' char(10) 'ddd: Day using first three letters (Mon, Tue)' char(10) 'dd: Day in two digits (05, 20)' char(10) 'HH: Hour in two digits (05, 24)' char(10) 'MM: Minute in two digits (12, 02)' char(10) 'SS: Second in two digits (07, 59)']);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y+3 50 19], 'string','Data file', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+55 y+3 235-d 22], 'tag','DataFile', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+3 50 19],'string','Data file','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+55 y+3 235-d 22],'tag','DataFile','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 100 22], 'string','Filetype', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+55 y+3 55 22], 'tag','Filetype', 'string',filetype, 'fontsize',fontsize, 'callback',callbackfunc);
-%         uicontrol('style','text', 'position',[x y 100 22], 'string','Minify runtime', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-%         uicontrol('style','checkbox', 'position',[x+95 y+6 15 15], 'tag','MinifyRuntime', 'backgroundcolor',bgcolor, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 100 22],'string','Filetype','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+55 y+3 55 22],'tag','Filetype','string',filetype,'fontsize',fontsize,'callback',callbackfunc);
+%         uicontrol('style','text','position',[x y 100 22],'string','Minify runtime','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+%         uicontrol('style','checkbox','position',[x+95 y+6 15 15],'tag','MinifyRuntime','backgroundcolor',bgcolor,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 55 22], 'string','Runtime', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','pushbutton', 'position',[x+55 y+3 55 22], 'tag','OpenRuntimeFolder', 'string','Locate', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Open the runtime location');
-        uicontrol('style','pushbutton', 'position',[x+135-d y 155 48], 'tag','RunButton', 'enable','inactive', 'cdata',runbuttondim_image, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 55 22],'string','Runtime','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+55 y+3 55 22],'tag','OpenRuntimeFolder','string','Locate','fontsize',fontsize,'callback',callbackfunc,'tooltip','Open the runtime location');
+        uicontrol('style','pushbutton','position',[x+135-d y 155 48],'tag','RunButton','enable','inactive','cdata',runbuttondim_image,'callback',callbackfunc);
         
         if collapsed_menu
             hVideo = []; hIO = []; hTask = [];
             x = 310; y = 295; bgcolor = frame_bgcolor;
-            uicontrol('style','frame','position',[x y 280 135], 'backgroundcolor',bgcolor);
-            uicontrol('style','pushbutton', 'position',[x+5 y+10 90 30], 'cdata',taskheader_image, 'enable','inactive');
-            uicontrol('style','pushbutton', 'position',[x+190 y+15 80 25], 'tag','TaskSetting', 'string','Settings', 'fontsize',fontsize, 'callback',callbackfunc);
-            uicontrol('style','pushbutton', 'position',[x+4 y+53 180 30], 'cdata',ioheader_image, 'enable','inactive');
-            uicontrol('style','pushbutton', 'position',[x+190 y+55 80 25], 'tag','IOSetting', 'string','Settings', 'fontsize',fontsize, 'callback',callbackfunc);
-            uicontrol('style','pushbutton', 'position',[x+2 y+88 100 30], 'cdata',videoheader_image, 'enable','inactive');
-            uicontrol('style','pushbutton', 'position',[x+190 y+95 80 25], 'tag','VideoSetting', 'string','Settings', 'fontsize',fontsize, 'callback',callbackfunc);
+            uicontrol('style','frame','position',[x y 280 135],'backgroundcolor',bgcolor);
+            uicontrol('style','pushbutton','position',[x+5 y+10 90 30],'cdata',taskheader_image,'enable','inactive');
+            uicontrol('style','pushbutton','position',[x+190 y+15 80 25],'tag','TaskSetting','string','Settings','fontsize',fontsize,'callback',callbackfunc);
+            uicontrol('style','pushbutton','position',[x+4 y+53 180 30],'cdata',ioheader_image,'enable','inactive');
+            uicontrol('style','pushbutton','position',[x+190 y+55 80 25],'tag','IOSetting','string','Settings','fontsize',fontsize,'callback',callbackfunc);
+            uicontrol('style','pushbutton','position',[x+2 y+88 100 30],'cdata',videoheader_image,'enable','inactive');
+            uicontrol('style','pushbutton','position',[x+190 y+95 80 25],'tag','VideoSetting','string','Settings','fontsize',fontsize,'callback',callbackfunc);
         else
             hVideo = hFig; hIO = hFig; hTask = hFig;
             menu_video(310,668);
@@ -1574,184 +1813,181 @@ init();
         
         x = x2; y = y2; bgcolor = figure_bgcolor;
         x = x + 10;
-        uicontrol('style','text', 'position',[x y 50 22], 'string','Config:', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','text', 'position',[x+45 y 530 22], 'tag','ConfigurationFile', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left', 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+235-d y+3 55 22], 'tag','OpenConfigurationFolder', 'string','Locate', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Open the configuration file location');
+        uicontrol('style','text','position',[x y 50 22],'string','Config:','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','text','position',[x+45 y 530 22],'tag','ConfigurationFile','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left','callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+235-d y+3 55 22],'tag','OpenConfigurationFolder','string','Locate','fontsize',fontsize,'callback',callbackfunc,'tooltip','Open the configuration file location');
         y = y - 24;
-        uicontrol('style','pushbutton', 'position',[x y 140-d/2 24], 'tag','LoadSettings', 'string','Load settings', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+150-d/2 y 140-d/2 24], 'tag','SaveSettings', 'enable','off', 'string','Save settings', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x y 140-d/2 24],'tag','LoadSettings','string','Load settings','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+150-d/2 y 140-d/2 24],'tag','SaveSettings','enable','off','string','Save settings','fontsize',fontsize,'callback',callbackfunc);
     end
 
     function menu_video(x0,y0)
         x = x0; y = y0; bgcolor = frame_bgcolor;
-        uicontrol('style','frame','position',[x y-500 280 500], 'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y-500 280 500],'backgroundcolor',bgcolor);
         x = x0 + 180; y = y - 27; bgcolor = figure_bgcolor;
-        uicontrol('style','frame','position',[x y 100 27], 'backgroundcolor',bgcolor);
-        uicontrol('style','frame','position',[x+1 y+1 100 27], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','pushbutton', 'position',[x+5 y+5 95 22], 'tag','LatencyTest', 'string','Latency test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Performance test with pictures and movies');
+        uicontrol('style','frame','position',[x y 100 27],'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x+1 y+1 100 27],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','pushbutton','position',[x+5 y+5 95 22],'tag','LatencyTest','string','Latency test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Performance test with pictures and movies');
         x = x0 + 1; y = y - 10;
-        uicontrol('style','pushbutton', 'position',[x y 100 30], 'cdata',videoheader_image, 'enable','inactive');
+        uicontrol('style','pushbutton','position',[x y 100 30],'cdata',videoheader_image,'enable','inactive');
         x = x0 + 10; y = y - 23; bgcolor = frame_bgcolor;
-        uicontrol('style','text', 'position',[x y 170 22], 'string','Subject screen device', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+145 y+3 50 22], 'tag','SubjectScreenDevice', 'string',num2cell(1:System.NumberOfScreenDevices), 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 170 22],'string','Subject screen device','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+145 y+3 50 22],'tag','SubjectScreenDevice','string',num2cell(1:System.NumberOfScreenDevices),'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 100 22], 'string','Resolution', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left', 'tooltip','To change the resolution, use the screen menu of Windows');
-        uicontrol('style','edit', 'position',[x+75 y+3 120 22], 'tag','Resolution', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
+        uicontrol('style','text','position',[x y 100 22],'string','Resolution','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left','tooltip','To change the resolution,use the screen menu of Windows');
+        uicontrol('style','edit','position',[x+75 y+3 120 22],'tag','Resolution','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Diagonal size (cm)', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+140 y+3 55 22], 'tag','DiagonalSize', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Diagonal size of the subject screen');
+        uicontrol('style','text','position',[x y 140 22],'string','Diagonal size (cm)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+140 y+3 55 22],'tag','DiagonalSize','fontsize',fontsize,'callback',callbackfunc,'tooltip','Diagonal size of the subject screen');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Viewing distance (cm)', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+140 y+3 55 22], 'tag','ViewingDistance', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Distance between the subject''eye and the screen');
+        uicontrol('style','text','position',[x y 140 22],'string','Viewing distance (cm)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+140 y+3 55 22],'tag','ViewingDistance','fontsize',fontsize,'callback',callbackfunc,'tooltip','Distance between the subject''eye and the screen');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Pixels per degree', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+140 y+3 55 22], 'tag','PixelsPerDegree', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
-        uicontrol('style','pushbutton', 'position',[x+203 y+2 58 124], 'tag','VideoTest', 'string','Test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Test the selected subject screen device');
+        uicontrol('style','text','position',[x y 140 22],'string','Pixels per degree','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+140 y+3 55 22],'tag','PixelsPerDegree','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize);
+        uicontrol('style','pushbutton','position',[x+203 y+2 58 124],'tag','VideoTest','string','Test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Test the selected subject screen device');
         x = x0 + 5; bgcolor = 0.9 * frame_bgcolor;
-        uicontrol('style','frame','position',[x y-81 270 80], 'backgroundcolor',bgcolor, 'foregroundcolor',0.8 * frame_bgcolor);
+        uicontrol('style','frame','position',[x y-81 270 80],'backgroundcolor',bgcolor,'foregroundcolor',0.8 * frame_bgcolor);
         x = x0 + 10; y = y - 30;
-        uicontrol('style','text', 'position',[x y 140 22], 'string','Fallback screen rect.', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+125 y+3 135 22], 'tag','FallbackScreenRect', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip',['Format: [LEFT,TOP,RIGHT,BOTTOM]' char(10) 'This window will be used as the subject screen' char(10) 'when there is only one monitor available' char(10) 'or when forced to use it']);
+        uicontrol('style','text','position',[x y 140 22],'string','Fallback screen rect.','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+125 y+3 135 22],'tag','FallbackScreenRect','fontsize',fontsize,'callback',callbackfunc,'tooltip',['Format: [LEFT,TOP,RIGHT,BOTTOM]' char(10) 'This window will be used as the subject screen' char(10) 'when there is only one monitor available' char(10) 'or when forced to use it']);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 180 22], 'string','Forced use of fallback screen', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','checkbox', 'position',[x+180 y+6 15 15], 'tag','ForcedUseOfFallbackScreen', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 180 22],'string','Forced use of fallback screen','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','checkbox','position',[x+180 y+6 15 15],'tag','ForcedUseOfFallbackScreen','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position', [x y 105 22], 'string','Vsync spinlock', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position', [x+100 y+3 30 22], 'tag','VsyncSpinlock', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltips',['This determines when MonkeyLogic has to stop doing' char(10) 'other things and wait for the vertical blank time']);
-        uicontrol('style','text', 'position', [x+135 y 120 22], 'string', 'msec before vblank', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
+        uicontrol('style','text','position',[x y 105 22],'string','Vsync spinlock','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+100 y+3 30 22],'tag','VsyncSpinlock','fontsize',fontsize,'callback',callbackfunc,'tooltips',['This determines when MonkeyLogic has to stop doing' char(10) 'other things and wait for the vertical blank time']);
+        uicontrol('style','text','position',[x+135 y 120 22],'string','msec before vblank','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
         y = y - 30; bgcolor = frame_bgcolor;
-        uicontrol('style','text', 'position',[x y 170 22], 'string', 'Subject screen background', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','pushbutton', 'position',[x+165 y+3 100 22], 'tag','SubjectScreenBackground', 'string','Color', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 170 22],'string','Subject screen background','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+165 y+3 100 22],'tag','SubjectScreenBackground','string','Color','fontsize',fontsize,'callback',callbackfunc);
         y = y - 30;
-        uicontrol('style','text', 'position',[x y 115 22], 'string','Fixation point', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','pushbutton', 'position',[x+80 y+3 185 22],'tag','FixationPointImage', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 115 22],'string','Fixation point','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+80 y+3 185 22],'tag','FixationPointImage','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x+25 y 50 22], 'string','or use', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','right');
-        uicontrol('style','popupmenu', 'position',[x+80 y+3 65 22], 'tag','FixationPointShape', 'string', {'Circle','Square'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+150 y+3 55 22], 'tag','FixationPointColor', 'string','Color', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','edit', 'position',[x+210 y+3 35 22], 'tag','FixationPointDeg', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Radius in degrees');
-        uicontrol('style','text', 'position',[x+245 y 24 22], 'string','deg', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
+        uicontrol('style','text','position',[x+25 y 50 22],'string','or use','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','right');
+        uicontrol('style','popupmenu','position',[x+80 y+3 65 22],'tag','FixationPointShape','string',{'Circle','Square'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+150 y+3 55 22],'tag','FixationPointColor','string','Color','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','edit','position',[x+210 y+3 35 22],'tag','FixationPointDeg','fontsize',fontsize,'callback',callbackfunc,'tooltip','Radius in degrees');
+        uicontrol('style','text','position',[x+245 y 24 22],'string','deg','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
         y = y - 30;
-        uicontrol('style','text', 'position',[x y 95 22], 'string','Eye tracer', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+80 y+3 65 22], 'tag','EyeTracerShape', 'string', {'Line','Circle','Square'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+150 y+3 55 22], 'tag','EyeTracerColor', 'string','Color', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','edit', 'position', [x+210 y+3 35 22], 'tag','EyeTracerSize', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+245 y 20 22], 'string','px', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
+        uicontrol('style','text','position',[x y 95 22],'string','Eye tracer','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+80 y+3 65 22],'tag','EyeTracerShape','string',{'Line','Circle','Square'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+150 y+3 55 22],'tag','EyeTracerColor','string','Color','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','edit','position',[x+210 y+3 35 22],'tag','EyeTracerSize','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+245 y 20 22],'string','px','backgroundcolor',bgcolor,'fontsize',fontsize);
         y = y - 30;
-        uicontrol('style','text', 'position',[x y+8 50 18], 'string','Joystick', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','text', 'position',[x+35 y-4 40 18], 'string','cursor', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','pushbutton', 'position',[x+80 y+3 185 22], 'tag','JoystickCursorImage', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+8 50 18],'string','Joystick','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','text','position',[x+35 y-4 40 18],'string','cursor','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+80 y+3 185 22],'tag','JoystickCursorImage','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x+25 y 50 22], 'string','or use', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','right');
-        uicontrol('style','popupmenu', 'position',[x+80 y+3 65 22], 'tag','JoystickCursorShape', 'string', {'Circle','Square'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+150 y+3 55 22], 'tag','JoystickCursorColor', 'string','Color', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','edit', 'position',[x+210 y+3 35 22], 'tag','JoystickCursorSize', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+245 y 20 22], 'string','px', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
+        uicontrol('style','text','position',[x+25 y 50 22],'string','or use','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','right');
+        uicontrol('style','popupmenu','position',[x+80 y+3 65 22],'tag','JoystickCursorShape','string',{'Circle','Square'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+150 y+3 55 22],'tag','JoystickCursorColor','string','Color','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','edit','position',[x+210 y+3 35 22],'tag','JoystickCursorSize','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+245 y 20 22],'string','px','backgroundcolor',bgcolor,'fontsize',fontsize);
         y = y - 30;
-        uicontrol('style','text', 'position',[x y 115 22], 'string','Touch cursor', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','pushbutton', 'position',[x+80 y+3 185 22], 'tag','TouchCursorImage', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 115 22],'string','Touch cursor','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+80 y+3 185 22],'tag','TouchCursorImage','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x+25 y 50 22], 'string','or use', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','right');
-        uicontrol('style','popupmenu', 'position',[x+80 y+3 65 22], 'tag','TouchCursorShape', 'string', {'Circle','Square'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+150 y+3 55 22], 'tag','TouchCursorColor', 'string','Color', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','edit', 'position',[x+210 y+3 35 22], 'tag','TouchCursorSize', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+245 y 20 22], 'string','px', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
+        uicontrol('style','text','position',[x+25 y 50 22],'string','or use','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','right');
+        uicontrol('style','popupmenu','position',[x+80 y+3 65 22],'tag','TouchCursorShape','string',{'Circle','Square'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+150 y+3 55 22],'tag','TouchCursorColor','string','Color','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','edit','position',[x+210 y+3 35 22],'tag','TouchCursorSize','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+245 y 20 22],'string','px','backgroundcolor',bgcolor,'fontsize',fontsize);
         y = y - 30;
-        uicontrol('style','text', 'position', [x y 140 22], 'string','Photodiode trigger', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position', [x+115 y+3 88 22], 'tag','PhotoDiodeTrigger', 'string',{'None','Upper left','Upper right','Lower right','Lower left'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','edit', 'position',[x+210 y+3 35 22], 'tag','PhotoDiodeTriggerSize', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+245 y 20 22], 'string','px', 'backgroundcolor',bgcolor, 'fontsize',fontsize);
+        uicontrol('style','text','position',[x y 140 22],'string','Photodiode trigger','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+115 y+3 88 22],'tag','PhotoDiodeTrigger','string',{'None','Upper left','Upper right','Lower right','Lower left'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','edit','position',[x+210 y+3 35 22],'tag','PhotoDiodeTriggerSize','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+245 y 20 22],'string','px','backgroundcolor',bgcolor,'fontsize',fontsize);
     end
 
     function menu_io(x0,y0)
-        if any(strcmpi('joystick',daqhwinfo('all'))), info = daqhwinfo('joystick'); joyid = ['None'; info.InstalledBoardIds']; else joyid = {'None'}; end
         ai_configuration = {'Differential','SingleEnded','NonReferencedSingleEnded'};
         reward_polarity = {'trigger on HIGH','trigger on LOW'};
         strobe_trigger = {'on rising edge','on falling edge','send and clear'};
         calibration_method = {'Raw Signal (Precalibrated)','Origin & Gain','2-D Spatial Transformation'};
 
         x = x0; y = y0; bgcolor = frame_bgcolor;
-        uicontrol('style','frame', 'position',[x y-595 300 595], 'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y-595 300 595],'backgroundcolor',bgcolor);
         x = x0 + 185; y = y - 27; bgcolor = figure_bgcolor;
-        uicontrol('style','frame','position',[x y 115 27], 'backgroundcolor',bgcolor);
-        uicontrol('style','frame','position',[x+1 y+1 115 27], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','pushbutton', 'position',[x+5 y+5 110 22], 'tag','EditBehavioralCodesFile', 'string','Edit behav. codes', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','frame','position',[x y 115 27],'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x+1 y+1 115 27],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','pushbutton','position',[x+5 y+5 110 22],'tag','EditBehavioralCodesFile','string','Edit behav. codes','fontsize',fontsize,'callback',callbackfunc);
         x = x0 + 1; y = y - 5; bgcolor = frame_bgcolor;
-        uicontrol('style','pushbutton', 'position',[x y 180 30], 'cdata',ioheader_image, 'enable','inactive');
+        uicontrol('style','pushbutton','position',[x y 180 30],'cdata',ioheader_image,'enable','inactive');
         x = x0 + 5; y = y - 119;
-        uicontrol('style','text', 'position',[x y+90 135 22], 'string','Signal type', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x y 135 95], 'tag','SignalType', 'string',IOName, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+140 y+90 150 22], 'string','I/O boards', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x+140 y 150 95], 'tag','IOBoards', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+90 135 22],'string','Signal type','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x y 135 95],'tag','SignalType','string',IOName,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+140 y+90 150 22],'string','I/O boards','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x+140 y 150 95],'tag','IOBoards','fontsize',fontsize,'callback',callbackfunc);
         y = y - 115;
-        uicontrol('style','text', 'position',[x y+90 100 22], 'string','Subsystem', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x y 100 95], 'tag','Subsystem', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+100 y+90 55 22], 'string','Ch/Ports', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','listbox', 'position',[x+105 y 45 95], 'tag','Channels', 'fontsize',fontsize);
-        uicontrol('style','text', 'position',[x+165 y+90 115 22], 'string','Status', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','frame', 'position',[x+155 y+25 135 70], 'backgroundcolor',purple_bgcolor, 'foregroundcolor',0.8 * purple_bgcolor);
-        uicontrol('style','text', 'position',[x+156 y+72 133 20], 'tag','IOSignalType', 'string','Signal type', 'backgroundcolor',purple_bgcolor, 'fontsize',fontsize, 'fontweight','bold');
-        uicontrol('style','text', 'position',[x+156 y+56 133 20], 'tag','IOStatusBoard', 'string','IO board', 'backgroundcolor',purple_bgcolor, 'fontsize',fontsize);
-        uicontrol('style','text', 'position',[x+156 y+40 133 20], 'tag','IOStatusSubsystem', 'string','Subsystem', 'backgroundcolor',purple_bgcolor, 'fontsize',fontsize);
-        uicontrol('style','text', 'position',[x+156 y+26 133 18], 'tag','IOStatusChannels', 'string','Channels/Ports', 'backgroundcolor',purple_bgcolor, 'fontsize',fontsize);
-        uicontrol('style','pushbutton', 'position',[x+155 y 66 22], 'tag','IOAssign', 'string','Assign', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip',['1. Signal type' char(10) '2. IO Boards' char(10) '3. Subsystem' char(10) '4. Channels/Ports' char(10) '5. Assign']);
-        uicontrol('style','pushbutton', 'position',[x+225 y 66 22], 'tag','IOClear', 'string','Clear', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+90 100 22],'string','Subsystem','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x y 100 95],'tag','Subsystem','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+100 y+90 55 22],'string','Ch/Ports','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','listbox','position',[x+105 y 45 95],'tag','Channels','fontsize',fontsize);
+        uicontrol('style','text','position',[x+165 y+90 115 22],'string','Status','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','frame','position',[x+155 y+25 135 70],'backgroundcolor',purple_bgcolor,'foregroundcolor',0.8 * purple_bgcolor);
+        uicontrol('style','text','position',[x+156 y+72 133 20],'tag','IOSignalType','string','Signal type','backgroundcolor',purple_bgcolor,'fontsize',fontsize,'fontweight','bold');
+        uicontrol('style','text','position',[x+156 y+56 133 20],'tag','IOStatusBoard','string','IO board','backgroundcolor',purple_bgcolor,'fontsize',fontsize);
+        uicontrol('style','text','position',[x+156 y+40 133 20],'tag','IOStatusSubsystem','string','Subsystem','backgroundcolor',purple_bgcolor,'fontsize',fontsize);
+        uicontrol('style','text','position',[x+156 y+26 133 18],'tag','IOStatusChannels','string','Channels/Ports','backgroundcolor',purple_bgcolor,'fontsize',fontsize);
+        uicontrol('style','pushbutton','position',[x+155 y 66 22],'tag','IOAssign','string','Assign','fontsize',fontsize,'callback',callbackfunc,'tooltip',['1. Signal type' char(10) '2. IO Boards' char(10) '3. Subsystem' char(10) '4. Channels/Ports' char(10) '5. Assign']);
+        uicontrol('style','pushbutton','position',[x+225 y 66 22],'tag','IOClear','string','Clear','fontsize',fontsize,'callback',callbackfunc);
         x = x0 + 10; y = y - 30;
-        uicontrol('style', 'text', 'position', [x y 110 22], 'string','Touchscreen', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style', 'checkbox', 'position', [x+85 y+6 15 15], 'tag','Touchscreen', 'backgroundcolor',bgcolor, 'callback',callbackfunc);
-        uicontrol('style', 'text', 'position', [x+135 y 135 22], 'string','USB joystick', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style', 'popupmenu', 'position',[x+215 y+3 55 22], 'tag','USBJoystick', 'string',joyid, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 210 22],'string','Non-DAQ Devices (USB, TCP/IP, etc)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','pushbutton','position',[x+210 y+3 75 22],'tag','NonDAQDevices','string','Settings','fontsize',fontsize,'callback',callbackfunc);
         x = x0 + 5; bgcolor = 0.9 * frame_bgcolor;
-        uicontrol('style','frame', 'position',[x y-81 290 80], 'backgroundcolor',bgcolor, 'foregroundcolor',0.8 * frame_bgcolor);
-        uicontrol('style','frame', 'position',[x+165 y+54-81 125 26], 'backgroundcolor',bgcolor, 'foregroundcolor',0.8 * frame_bgcolor);
-        uicontrol('style','frame', 'position',[x+166 y+55-81 125 26], 'backgroundcolor',frame_bgcolor, 'foregroundcolor',frame_bgcolor);
-        uicontrol('style','pushbutton', 'position',[x+170 y+59-81 120 22], 'tag','IOTestButton', 'string','I/O Test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Test panel for analoginput, STM and TTL');
+        uicontrol('style','frame','position',[x y-81 290 80],'backgroundcolor',bgcolor,'foregroundcolor',0.8 * frame_bgcolor);
+        uicontrol('style','frame','position',[x+165 y+54-81 125 26],'backgroundcolor',bgcolor,'foregroundcolor',0.8 * frame_bgcolor);
+        uicontrol('style','frame','position',[x+166 y+55-81 125 26],'backgroundcolor',frame_bgcolor,'foregroundcolor',frame_bgcolor);
+        uicontrol('style','pushbutton','position',[x+170 y+59-81 120 22],'tag','IOTestButton','string','I/O Test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Test panel for analoginput, STM and TTL');
         x = x0 + 10; y = y - 30;
-        uicontrol('style','text', 'position',[x y 90 22], 'string','AI sample rate', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+95 y+3 55 22], 'tag','AISampleRate', 'string',{'1000';'500';'250';'100'}, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 90 22],'string','AI sample rate','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+95 y+3 55 22],'tag','AISampleRate','string',{'1000';'500';'250';'100'},'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','AI configuration', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+95 y+3 185 23], 'tag','AIConfiguration', 'string',ai_configuration, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 120 22],'string','AI configuration','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+95 y+3 185 23],'tag','AIConfiguration','string',ai_configuration,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','AI online smoothing', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+125 y+3 65 22], 'tag','AIOnlineSmoothing', 'string',{'None';'Mean';'Median'}, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+195 y 20 22], 'string','of', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+212 y+3 30 22], 'tag','AIOnlineSmoothingWindow', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+247 y 35 22], 'string','msec', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
+        uicontrol('style','text','position',[x y 120 22],'string','AI online smoothing','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+125 y+3 65 22],'tag','AIOnlineSmoothing','string',{'None';'Mean';'Median'},'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+195 y 20 22],'string','of','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
+        uicontrol('style','edit','position',[x+212 y+3 30 22],'tag','AIOnlineSmoothingWindow','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+247 y 35 22],'string','msec','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
         y = y - 30; bgcolor = frame_bgcolor;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Strobe', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+50 y+3 110 22], 'tag','StrobeTrigger', 'string',strobe_trigger, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+165 y+3 55 22], 'tag','StrobePulseSpec', 'string','Spec', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Set the strobe pulse specification');
-        uicontrol('style','pushbutton', 'position',[x+225 y+3 55 22], 'tag','StrobeTest', 'string','Test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Test Behavioral Codes strobing');
+        uicontrol('style','text','position',[x y 120 22],'string','Strobe','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+50 y+3 110 22],'tag','StrobeTrigger','string',strobe_trigger,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+165 y+3 55 22],'tag','StrobePulseSpec','string','Spec','fontsize',fontsize,'callback',callbackfunc,'tooltip','Set the strobe pulse specification');
+        uicontrol('style','pushbutton','position',[x+225 y+3 55 22],'tag','StrobeTest','string','Test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Test Behavioral Codes strobing');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 50 22], 'string','Reward', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+50 y+3 110 22], 'tag','RewardFuncArgs', 'enable','inactive', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip',['Additional arguments for the custom reward function.' char(10) 'Leave it blank if you don''t have any custom variable.']);
-        uicontrol('style','pushbutton', 'position',[x+165 y+3 55 22], 'tag','EditRewardArgs', 'string','Args', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Enter the reward variables');
-        uicontrol('style','pushbutton', 'position',[x+225 y+3 55 22], 'tag','EditRewardFunc', 'string','Edit', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Edit the custom reward function');
+        uicontrol('style','text','position',[x y 50 22],'string','Reward','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+50 y+3 110 22],'tag','RewardFuncArgs','enable','inactive','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc,'tooltip',['Additional arguments for the custom reward function.' char(10) 'Leave it blank if you don''t have any custom variable.']);
+        uicontrol('style','pushbutton','position',[x+165 y+3 55 22],'tag','EditRewardArgs','string','Args','fontsize',fontsize,'callback',callbackfunc,'tooltip','Enter the reward variables');
+        uicontrol('style','pushbutton','position',[x+225 y+3 55 22],'tag','EditRewardFunc','string','Edit','fontsize',fontsize,'callback',callbackfunc,'tooltip','Edit the custom reward function');
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Reward polarity', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+95 y+3 125 22], 'tag','RewardPolarity', 'string',reward_polarity, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+225 y+3 55 22], 'tag','RewardTest', 'string','Test', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Send a test reward pulse');
+        uicontrol('style','text','position',[x y 120 22],'string','Reward polarity','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+95 y+3 125 22],'tag','RewardPolarity','string',reward_polarity,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+225 y+3 55 22],'tag','RewardTest','string','Test','fontsize',fontsize,'callback',callbackfunc,'tooltip','Send a test reward pulse');
         x = x0 + 5; bgcolor = 0.9 * frame_bgcolor;
-        uicontrol('style','frame','position',[x y-81 290 80], 'backgroundcolor',bgcolor, 'foregroundcolor',0.8 * frame_bgcolor);
+        uicontrol('style','frame','position',[x y-81 290 80],'backgroundcolor',bgcolor,'foregroundcolor',0.8 * frame_bgcolor);
         x = x0 + 10; y = y - 30;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Eye calibration', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+95 y+3 185 22], 'tag','EyeCalibration', 'string',calibration_method, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 120 22],'string','Eye calibration','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+95 y+3 185 22],'tag','EyeCalibration','string',calibration_method,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','pushbutton', 'position',[x+35 y+3 55 22], 'tag','ResetEyeCalibration', 'string','Reset', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+95 y+3 90 22], 'tag','EyeCalibrationButton', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+190 y+3 90 22], 'tag','EyeCalibrationImportButton', 'string','Import Eye Cal', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+35 y+3 55 22],'tag','ResetEyeCalibration','string','Reset','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+95 y+3 90 22],'tag','EyeCalibrationButton','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+190 y+3 90 22],'tag','EyeCalibrationImportButton','string','Import Eye Cal','fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x+95 y 125 22], 'string','Auto drift correction', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+217 y+3 30 22], 'tag','EyeAutoDriftCorrection', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+252 y 20 22], 'string','%', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
+        uicontrol('style','text','position',[x+95 y 125 22],'string','Auto drift correction','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+217 y+3 30 22],'tag','EyeAutoDriftCorrection','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+252 y 20 22],'string','%','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
         y = y - 30; bgcolor = frame_bgcolor;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Joy calibration', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+95 y+3 185 22], 'tag','JoystickCalibration', 'string',calibration_method, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 120 22],'string','Joy calibration','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+95 y+3 185 22],'tag','JoystickCalibration','string',calibration_method,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','pushbutton', 'position',[x+35 y+3 55 22], 'tag','ResetJoystickCalibration', 'string','Reset', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+95 y+3 90 22], 'tag','JoystickCalibrationButton', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+190 y+3 90 22], 'tag','JoystickCalibrationImportButton', 'string','Import Joy Cal', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+35 y+3 55 22],'tag','ResetJoystickCalibration','string','Reset','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+95 y+3 90 22],'tag','JoystickCalibrationButton','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+190 y+3 90 22],'tag','JoystickCalibrationImportButton','string','Import Joy Cal','fontsize',fontsize,'callback',callbackfunc);
 
         update_boards();
     end
@@ -1762,44 +1998,49 @@ init();
         blocklogic = condlogic;
 
         x = x0; y = y0; bgcolor = frame_bgcolor;
-        uicontrol('style','frame','position',[x y-158 585 158], 'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y-158 585 158],'backgroundcolor',bgcolor);
         x = x0 + 285 + 160; y = y - 27; bgcolor = figure_bgcolor;
-        uicontrol('style','frame','position',[x y 140 27], 'backgroundcolor',bgcolor);
-        uicontrol('style','frame','position',[x+1 y+1 140 27], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
-        uicontrol('style','pushbutton', 'position',[x+5 y+5 75 22], 'tag','RemoteAlert', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+85 y+5 55 22], 'tag','EditAlertFunc', 'string','Edit', 'fontsize',fontsize, 'callback',callbackfunc, 'tooltip','Edit the alert function');
+        uicontrol('style','frame','position',[x y 140 27],'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x+1 y+1 140 27],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
+        uicontrol('style','pushbutton','position',[x+5 y+5 75 22],'tag','RemoteAlert','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+85 y+5 55 22],'tag','EditAlertFunc','string','Edit','fontsize',fontsize,'callback',callbackfunc,'tooltip','Edit the alert function');
         x = x0 + 10; y = y - 4; bgcolor = frame_bgcolor;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','On error', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+70 y+3 135 22], 'tag','ErrorLogic', 'string',errorlogic, 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','pushbutton', 'position',[x+210 y+3 55 22], 'string','Help', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback','web(''http://www.brown.edu/Research/monkeylogic/mlmenu.html#trialselectionsettings'',''-browser'')', 'tooltip',['Go to the online document' char(10) 'of the trial selection settings']);
+        uicontrol('style','text','position',[x y 120 22],'string','On error','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+70 y+3 135 22],'tag','ErrorLogic','string',errorlogic,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+210 y+3 55 22],'string','Help','backgroundcolor',bgcolor,'fontsize',fontsize,'callback','web(''http://www.brown.edu/Research/monkeylogic/mlmenu.html#trialselectionsettings'',''-browser'')','tooltip',['Go to the online document' char(10) 'of the trial selection settings']);
         y = y - 28;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Conditions', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+70 y+3 195 22], 'tag','CondLogic', 'string',condlogic, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 120 22],'string','Conditions','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+70 y+3 195 22],'tag','CondLogic','string',condlogic,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','pushbutton', 'position',[x+70 y+3 195 22], 'tag','CondSelectFunction', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left', 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+70 y+3 195 22],'tag','CondSelectFunction','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left','callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','text', 'position',[x y 120 22], 'string','Blocks', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','popupmenu', 'position',[x+70 y+3 195 22], 'tag','BlockLogic', 'string',blocklogic, 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','text','position',[x y 120 22],'string','Blocks','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','popupmenu','position',[x+70 y+3 195 22],'tag','BlockLogic','string',blocklogic,'fontsize',fontsize,'callback',callbackfunc);
         y = y - 25;
-        uicontrol('style','pushbutton', 'position',[x+70 y+3 195 22], 'tag','BlockSelectFunction', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left', 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+70 y+3 195 22],'tag','BlockSelectFunction','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left','callback',callbackfunc);
         y = y - 22;
-        uicontrol('style','pushbutton', 'position',[x+70 y+3 195 22], 'tag','BlockChangeFunction', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x+70 y+3 195 22],'tag','BlockChangeFunction','fontsize',fontsize,'callback',callbackfunc);
         x = x0 + 285 + 1; y = y0 - 35;
-        uicontrol('style','pushbutton', 'position',[x y 90 30], 'cdata',taskheader_image, 'enable','inactive');
+        uicontrol('style','pushbutton','position',[x y 90 30],'cdata',taskheader_image,'enable','inactive');
         x = x0 + 285 + 10; y = y0 - 59;
-        uicontrol('style','text', 'position',[x y 160 22], 'string','Inter-trial interval (ITI)', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','edit', 'position',[x+130 y+3 75 22], 'tag','InterTrialInterval', 'fontsize',fontsize, 'callback',callbackfunc);
-        uicontrol('style','text', 'position',[x+210 y 45 22], 'string','msec', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'horizontalalignment','left');
+        uicontrol('style','text','position',[x y 160 22],'string','Inter-trial interval (ITI)','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','edit','position',[x+130 y+3 75 22],'tag','InterTrialInterval','fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+210 y 45 22],'string','msec','backgroundcolor',bgcolor,'fontsize',fontsize,'horizontalalignment','left');
         y = y - 23;
-        uicontrol('style','text', 'position',[x y+2 160 20], 'string','Summary scene during ITI', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'fontweight','bold', 'horizontalalignment','left');
-        uicontrol('style','checkbox', 'position',[x+160 y+6 15 15], 'tag','SummarySceneDuringITI', 'backgroundcolor',bgcolor, 'fontsize',fontsize, 'callback',callbackfunc);
+%         uicontrol('style','text','position',[x y+2 160 20],'string','Summary scene during ITI','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+%         uicontrol('style','checkbox','position',[x+160 y+6 15 15],'tag','SummarySceneDuringITI','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x y+2 200 20],'string','During ITI,  show traces','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+%         uicontrol('style','text','position',[x+65 y+2 160 20],'string','show traces','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','checkbox','position',[x+140 y+6 15 15],'tag','SummarySceneDuringITI','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
+        uicontrol('style','text','position',[x+162 y+2 100 20],'string','&  record signals','backgroundcolor',bgcolor,'fontsize',fontsize,'fontweight','bold','horizontalalignment','left');
+        uicontrol('style','checkbox','position',[x+265 y+6 15 15],'tag','NonStopRecording','backgroundcolor',bgcolor,'fontsize',fontsize,'callback',callbackfunc);
         y = y0 - 105;
-        uicontrol('style','pushbutton', 'position',[x y+3 280 22], 'tag','UserPlotFunction', 'fontsize',fontsize, 'callback',callbackfunc);
+        uicontrol('style','pushbutton','position',[x y+3 280 22],'tag','UserPlotFunction','fontsize',fontsize,'callback',callbackfunc);
 
         x = x0 + 285; y = y0 - 158; bgcolor = figure_bgcolor;
-        uicontrol('style','frame', 'position',[x y 300 52], 'backgroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x y 300 52],'backgroundcolor',bgcolor);
         bgcolor = figure_bgcolor;
-        uicontrol('style','frame', 'position',[x+1 y-1 300 52], 'backgroundcolor',bgcolor, 'foregroundcolor',bgcolor);
+        uicontrol('style','frame','position',[x+1 y-1 300 52],'backgroundcolor',bgcolor,'foregroundcolor',bgcolor);
     end
 
     function closeDlg(~,~)
@@ -1919,6 +2160,11 @@ init();
         val = find(strcmpi(items,item),1);
         if isempty(val), val = 1; end
         set(h,'value',val,varargin{:});
+        str = items{val};
+    end
+    function str = get_listbox_value(h)
+        items = get(h,'string');
+        val = get(h,'value');
         str = items{val};
     end
     function filename = strip_path(filepath,replacement)

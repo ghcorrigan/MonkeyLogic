@@ -1,7 +1,7 @@
 classdef OnOffMarker < mladapter
     properties
-        OnMarker = 1;
-        OffMarker = 2;
+        OnMarker
+        OffMarker
     end
     
     methods
@@ -16,7 +16,11 @@ classdef OnOffMarker < mladapter
             continue_ = obj.Adapter.analyze(p);
             if obj.Success~=obj.Adapter.Success
                 obj.Success = obj.Adapter.Success;
-                if obj.Success, p.DAQ.eventmarker(obj.OnMarker); else, p.DAQ.eventmarker(obj.OffMarker); end
+                if obj.Success
+                    if ~isempty(obj.OnMarker), p.DAQ.eventmarker(obj.OnMarker); end
+                else
+                    if ~isempty(obj.OffMarker), p.DAQ.eventmarker(obj.OffMarker); end
+                end
             end
         end
     end

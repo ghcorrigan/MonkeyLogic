@@ -97,8 +97,6 @@ classdef mltrialrecord < handle
             end
         end
         
-        %function called from run_trial; lines 99/103 to select current
-        %condition for current trial
         function new_trial(obj)
             if obj.MLConditions.isconditionsfile()  % conditions file 
                 update_block(obj);

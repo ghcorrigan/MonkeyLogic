@@ -16,8 +16,8 @@ classdef OnsetDetector < mladapter
         end
         function continue_ = analyze(obj,p)
             continue_ = obj.Adapter.analyze(p);
-            if obj.Adapter.Success
-                if ~obj.Success && isprop(obj.Adapter,'Time'), obj.Time = obj.Adapter.Time(1); end
+            if ~obj.Success && obj.Adapter.Success
+                if isprop(obj.Adapter,'Time'), obj.Time = obj.Adapter.Time(1); end
                 obj.Success = true;
             end
         end

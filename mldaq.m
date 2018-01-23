@@ -1,6 +1,7 @@
 classdef mldaq < handle
     properties (Dependent = true)  % input
         Eye
+        EyeExtra
         Joystick
         PhotoDiode
         Button
@@ -66,6 +67,7 @@ classdef mldaq < handle
         function val = stimulation_available(obj), val = find(0==cellfun(@isempty,obj.Stimulation)); end
         function val = reward_present(obj), val = ~strcmp(func2str(obj.goodmonkey),func2str(@obj.dummy_goodmonkey)); end
         function val = strobe_present(obj), val = ~strcmp(func2str(obj.eventmarker),func2str(@obj.dummy_eventmarker)); end
+        function val = eyetracker_present(obj), val = 0~=obj.Map.EyeTracker(1); end
         function button_threshold(obj,button,val), if isempty(val), obj.Map.Button(button,3) = obj.Map.Button(button,4); else obj.Map.Button(button,3) = val; end, end
         function val = get_device(obj,type)
             switch lower(type)
@@ -73,6 +75,7 @@ classdef mldaq < handle
                 case {'joystick',2}, if 0~=obj.Map.Joystick(1), val = obj.DAQ{obj.Map.Joystick(1)}; else val =[]; end
                 case 'mouse', if 0~=obj.Map.Mouse(1), val = obj.DAQ{obj.Map.Mouse(1)}; else val =[]; end
                 case 'usbjoystick', if 0~=obj.Map.USBJoystick(1), val = obj.DAQ{obj.Map.USBJoystick(1)}; else val =[]; end
+                case 'eyetracker', if 0~=obj.Map.EyeTracker(1), val = obj.DAQ{obj.Map.EyeTracker(1)}; else val =[]; end
             end
         end
         
@@ -87,8 +90,9 @@ classdef mldaq < handle
             end
 
             reset = reset | ~isequal(obj.IO,MLConfig.IO) ...
-                | xor(MLConfig.Touchscreen,obj.mouse_present) ...
-                | xor(~strcmpi('None',MLConfig.USBJoystick),obj.usbjoystick_present);
+                | xor(MLConfig.Touchscreen,obj.mouse_present()) ...
+                | ~strcmpi('None',MLConfig.USBJoystick) ...
+                | ~isempty(MLConfig.EyeTracker.ID);
             if ~reset
                 try  % quick return after updating non-IO variables
                     stop(obj);
@@ -190,40 +194,55 @@ classdef mldaq < handle
             end
             if ~strcmpi('None',MLConfig.USBJoystick)
                 obj.DAQ{end+1,1} = pointingdevice('joystick',MLConfig.USBJoystick); obj.Type(end+1,1) = 4;
-                m = length(obj.DAQ); obj.Startable(end+1) = m; obj.Map.Joystick = [m 1, m 2]; obj.Map.USBJoystick = m;
+                m = length(obj.DAQ); obj.Startable(end+1) = m; obj.Map.Joystick = [m 1; m 2]; obj.Map.USBJoystick = m;
                 info = daqhwinfo(obj.DAQ{end}); obj.nButton(2) = info.Buttons;
+            end
+            if ~isempty(MLConfig.EyeTracker.ID)
+                eye = eyetracker(MLConfig.EyeTracker.ID);
+                switch MLConfig.EyeTracker.ID
+                    case 'viewpoint'
+                        eye.setting('Port',MLConfig.EyeTracker.ViewPoint.Port);
+                        eye.IP_address = MLConfig.EyeTracker.ViewPoint.IP_address;
+                        eye.Source = MLConfig.EyeTracker.ViewPoint.Source;
+                    case 'eyelink'
+                        [width,height] = mglgetadapterdisplaymode(MLConfig.SubjectScreenDevice);
+                        eye.setting('ScreenSize',[width height]);
+                        eye.setting('Filter',MLConfig.EyeTracker.EyeLink.Filter);
+                        eye.setting('PupilSize',MLConfig.EyeTracker.EyeLink.PupilSize);
+                        eye.IP_address = MLConfig.EyeTracker.EyeLink.IP_address;
+                        eye.Source = MLConfig.EyeTracker.EyeLink.Source;
+                    otherwise, error('Unknown TCP/IP eye tracker type!!!');
+                end
+                obj.DAQ{end+1,1} = eye; obj.Type(end+1,1) = 1;
+                m = length(obj.DAQ); obj.Startable(end+1) = m; obj.Map.Eye = [m 1; m 2]; obj.Map.EyeTracker = m;
             end
             
             update(obj,MLConfig);
         end
         
         function val = get.Eye(obj)
-            if 0~=obj.Map.Eye(1) && 0<obj.LastAcquisition
-                val = obj.Data{obj.Map.Eye(1),1}(:,obj.Map.Eye(:,2));
-                if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Eye(1)); end
-            else
-                val = [];
-            end
+            if 0==obj.Map.Eye(1) || isempty(obj.Data{obj.Map.Eye(1),1}), val = []; return, end
+            val = obj.Data{obj.Map.Eye(1),1}(:,obj.Map.Eye(:,2));
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Eye(1)); end
+        end
+        function val = get.EyeExtra(obj)
+            if 0==obj.Map.EyeTracker(1) || isempty(obj.Data{obj.Map.EyeTracker(1),1}), val = []; return, end
+            val = obj.Data{obj.Map.EyeTracker(1),1}(:,3:end);
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.EyeTracker(1)); end
         end
         function val = get.Joystick(obj)
-            if 0~=obj.Map.Joystick(1) && 0<obj.LastAcquisition
-                if 0==obj.Map.USBJoystick
-                    val = obj.Data{obj.Map.Joystick(1),1}(:,obj.Map.Joystick(:,2));
-                else
-                    val = obj.Data{obj.Map.Joystick(1),1}(:,obj.Map.Joystick(:,2)) ./ 1000;
-                end
-                if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Joystick(1)); end
+            if 0==obj.Map.Joystick(1) || isempty(obj.Data{obj.Map.Joystick(1),1}), val = []; return, end
+            if 0==obj.Map.USBJoystick
+                val = obj.Data{obj.Map.Joystick(1),1}(:,obj.Map.Joystick(:,2));
             else
-                val = [];
+                val = obj.Data{obj.Map.Joystick(1),1}(:,obj.Map.Joystick(:,2)) ./ 1000;
             end
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Joystick(1)); end
         end
         function val = get.PhotoDiode(obj)
-            if 0~=obj.Map.PhotoDiode(1) && 0<obj.LastAcquisition
-                val = obj.Data{obj.Map.PhotoDiode(1),1}(:,obj.Map.PhotoDiode(:,2));
-                if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.PhotoDiode(1)); end
-            else
-                val = [];
-            end
+            if 0==obj.Map.PhotoDiode(1) || isempty(obj.Data{obj.Map.PhotoDiode(1),1}), val = []; return, end
+            val = obj.Data{obj.Map.PhotoDiode(1),1}(:,obj.Map.PhotoDiode(:,2));
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.PhotoDiode(1)); end
         end
         function val = get.Button(obj)
             btn = find(0~=obj.Map.Button(:,1))';
@@ -231,54 +250,74 @@ classdef mldaq < handle
             switch obj.LastAcquisition
                 case 1
                     val = false(1,obj.nButton(1));
-                    for m=btn, val(m) = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2)); end
+                    for m=btn
+                        if isempty(obj.Data{obj.Map.Button(m,1),1}), continue, end
+                        val(m) = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2));
+                    end
                     if 0~=obj.Map.USBJoystick, val = [val obj.Data{obj.Map.USBJoystick,2}]; end
                 case 2
                     val = cell(1,nbtn);
-                    for m=btn, val{m} = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2)); end
+                    for m=btn
+                        if isempty(obj.Data{obj.Map.Button(m,1),1}), continue, end
+                        val{m} = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2));
+                    end
+                    if 0==obj.Map.USBJoystick || isempty(obj.Data{obj.Map.USBJoystick,2}), return, end
                     for m=1:obj.nButton(2), val{m+obj.nButton(1)} = obj.Data{obj.Map.USBJoystick,2}(:,m); end
                 case 3
                     val = cell(1,nbtn);
-                    for m=btn, val{m} = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2)); end
+                    for m=btn
+                        if isempty(obj.Data{obj.Map.Button(m,1),1}), continue, end
+                        val{m} = obj.Map.Button(m,3) < obj.Data{obj.Map.Button(m,1),1}(:,obj.Map.Button(m,2));
+                    end
+                    obj.LastSamplePosition = NaN(1,nbtn); obj.LastSamplePosition(btn) = obj.nSampleFromMarker(obj.Map.Button(btn,1));
+                    if 0==obj.Map.USBJoystick || isempty(obj.Data{obj.Map.USBJoystick,2}), return, end
                     for m=1:obj.nButton(2), val{m+obj.nButton(1)} = obj.Data{obj.Map.USBJoystick,2}(:,m); end
-                    obj.LastSamplePosition = NaN(1,nbtn);
-                    obj.LastSamplePosition(btn) = obj.nSampleFromMarker(obj.Map.Button(btn,1));
-                    if 0~=obj.Map.USBJoystick, obj.LastSamplePosition(obj.nButton(1)+1:end) = obj.nSampleFromMarker(obj.Map.USBJoystick); end
+                    obj.LastSamplePosition(obj.nButton(1)+1:end) = obj.nSampleFromMarker(obj.Map.USBJoystick);
                 otherwise, val = [];
             end
         end
         function val = get.General(obj)
             gen = find(0~=obj.Map.General(:,1))';
             switch obj.LastAcquisition
-                case 1, val = NaN(1,obj.nGeneral); for m=gen, val(m) = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2)); end
-                case 2, val = cell(1,obj.nGeneral); for m=gen, val{m} = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2)); end
+                case 1
+                    val = NaN(1,obj.nGeneral);
+                    for m=gen
+                        if isempty(obj.Data{obj.Map.General(m,1),1}), continue, end
+                        val(m) = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2));
+                    end
+                case 2
+                    val = cell(1,obj.nGeneral);
+                    for m=gen
+                        if isempty(obj.Data{obj.Map.General(m,1),1}), continue, end
+                        val{m} = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2));
+                    end
                 case 3
-                    val = cell(1,obj.nGeneral); for m=gen, val{m} = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2)); end
+                    val = cell(1,obj.nGeneral);
+                    for m=gen
+                        if isempty(obj.Data{obj.Map.General(m,1),1}), continue, end
+                        val{m} = obj.Data{obj.Map.General(m,1),1}(:,obj.Map.General(m,2));
+                    end
                     obj.LastSamplePosition = NaN(1,obj.nGeneral); obj.LastSamplePosition(gen) = obj.nSampleFromMarker(obj.Map.General(gen,1));
                 otherwise, val = [];
             end
         end
         function val = get.Mouse(obj)
-            if 0~=obj.Map.Mouse && 0<obj.LastAcquisition
-                val = obj.Data{obj.Map.Mouse,1};
-                if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Mouse); end
-            else
-                val = [];
-            end
+            if 0==obj.Map.Mouse || isempty(obj.Data{obj.Map.Mouse,1}), val = []; return, end
+            val = obj.Data{obj.Map.Mouse,1};
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Mouse); end
         end
         function val = get.MouseButton(obj)
-            if 0~=obj.Map.Mouse && 0<obj.LastAcquisition
-                val = obj.Data{obj.Map.Mouse,2};
-                if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Mouse); end
-            else
-                val = [];
-            end
+            if 0==obj.Map.Mouse || isempty(obj.Data{obj.Map.Mouse,2}), val = []; return, end
+            val = obj.Data{obj.Map.Mouse,2};
+            if 3==obj.LastAcquisition, obj.LastSamplePosition = obj.nSampleFromMarker(obj.Map.Mouse); end
         end
         
         function start(~), mdqmex(94,0); end
         function stop(~), mdqmex(94,1); end
         function flushdata(~), mdqmex(94,2); end
-        function putmarker(~), mdqmex(94,3); end
+        function flushmarker(~), mdqmex(94,8); end
+        function frontmarker(~), mdqmex(94,3); end
+        function backmarker(~), mdqmex(94,7); end
         function val = isrunning(~), val = mdqmex(94,4); end
         function val = MinSamplesAvailable(~), val = mdqmex(94,5); end
         function val = MinSamplesAcquired(~), val = mdqmex(94,6); end
@@ -303,25 +342,36 @@ classdef mldaq < handle
             end
             obj.LastAcquisition = 1;
         end
-        function getmarked(obj)
+        function peekfront(obj)
             obj.Data = cell(length(obj.DAQ),2);
             obj.nSampleFromMarker = NaN(length(obj.IO),1);
             for m=obj.Startable
                 switch obj.Type(m)
-                    case 1, [obj.Data{m,1},obj.nSampleFromMarker(m)] = getmarked(obj.DAQ{m});
-                    case 3, if 0<obj.DAQ{m}.SamplesAvailable, [obj.Data{m,1},obj.nSampleFromMarker(m)] = getmarked(obj.DAQ{m}); end
-                    case 4, [obj.Data{m,1},obj.Data{m,2},~,obj.nSampleFromMarker(m)] = getmarked(obj.DAQ{m});
+                    case 1, [obj.Data{m,1},obj.nSampleFromMarker(m)] = peekfront(obj.DAQ{m});
+                    case 3, if 0<obj.DAQ{m}.SamplesAvailable, [obj.Data{m,1},obj.nSampleFromMarker(m)] = peekfront(obj.DAQ{m}); end
+                    case 4, [obj.Data{m,1},obj.Data{m,2},~,obj.nSampleFromMarker(m)] = peekfront(obj.DAQ{m});
                 end
             end
             obj.LastAcquisition = 3;
         end
-        function getdata(obj)
+        function getback(obj)
             obj.Data = cell(length(obj.DAQ),2);
             for m=obj.Startable
                 switch obj.Type(m)
-                    case 1, obj.Data{m,1} = getdata(obj.DAQ{m});
-                    case 3, if 0<obj.DAQ{m}.SamplesAvailable, obj.Data{m,1} = getdata(obj.DAQ{m}); end
-                    case 4, [obj.Data{m,1},obj.Data{m,2}] = getdata(obj.DAQ{m});
+                    case 1, obj.Data{m,1} = getback(obj.DAQ{m});
+                    case 3, if 0<obj.DAQ{m}.SamplesAvailable, obj.Data{m,1} = getback(obj.DAQ{m}); end
+                    case 4, [obj.Data{m,1},obj.Data{m,2}] = getback(obj.DAQ{m});
+                end
+            end
+            obj.LastAcquisition = 2;
+        end
+        function getdata(obj,varargin)
+            obj.Data = cell(length(obj.DAQ),2);
+            for m=obj.Startable
+                switch obj.Type(m)
+                    case 1, obj.Data{m,1} = getdata(obj.DAQ{m},varargin{:});
+                    case 3, if 0<obj.DAQ{m}.SamplesAvailable, obj.Data{m,1} = getdata(obj.DAQ{m},varargin{:}); end
+                    case 4, [obj.Data{m,1},obj.Data{m,2}] = getdata(obj.DAQ{m},varargin{:});
                 end
             end
             obj.LastAcquisition = 2;
@@ -422,6 +472,23 @@ classdef mldaq < handle
                 obj.DAQ{end}.register(); m = length(obj.DAQ); obj.Startable(end+1) = m; obj.Map.Mouse = m;
             end
         end
+        function create_simulated_output(obj)
+            ao = analogoutput_playback;
+            for m=1:obj.nStimulation
+                addchannel(ao,m-1,sprintf('Stimulation%d',m));
+            end
+            for m=1:obj.nStimulation
+                if isempty(obj.Stimulation{m}), obj.Stimulation{m} = ao; end
+            end
+            
+            dio = digitalio_playback;
+            for m=1:obj.nTTL
+                addline(dio,m-1,0,'Out',sprintf('TTL%d',m));
+            end
+            for m=1:obj.nTTL
+                if isempty(obj.TTL{m}), obj.TTL{m} = dio; end
+            end
+        end
     end        
     
     methods (Access = protected)
@@ -436,7 +503,7 @@ classdef mldaq < handle
             obj.TTL = cell(1,obj.nTTL);
             obj.SimulatedJoystick = zeros(1,2);
             obj.SimulatedButton = false(1,obj.nButton(1));
-            obj.Map = struct('Eye',zeros(2,2),'Joystick',zeros(2,2),'PhotoDiode',zeros(1,2),'Button',zeros(obj.nButton(1),4),'General',zeros(obj.nGeneral,2),'Mouse',0,'USBJoystick',0);
+            obj.Map = struct('Eye',zeros(2,2),'Joystick',zeros(2,2),'PhotoDiode',zeros(1,2),'Button',zeros(obj.nButton(1),4),'General',zeros(obj.nGeneral,2),'Mouse',0,'USBJoystick',0,'EyeTracker',0);
             obj.Startable = [];
             obj.LastAcquisition = 0;
         end
@@ -446,7 +513,7 @@ classdef mldaq < handle
             mdqmex(95,obj.StrobeTrigger,MLConfig.StrobePulseSpec.T1,MLConfig.StrobePulseSpec.T2);
             for m=1:length(obj.DAQ)
                 switch lower(class(obj.DAQ{m}))
-                    case {'analoginput','pointingdevice'}, register(obj.DAQ{m});
+                    case {'analoginput','pointingdevice','eyetracker'}, register(obj.DAQ{m});
                     case 'digitalio', if strcmpi(obj.DAQ{m}.Line(1).Direction,'in'), register(obj.DAQ{m}); end
                 end
             end

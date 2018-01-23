@@ -1,22 +1,22 @@
 classdef pointingdevice < dynamicprops
     properties
-        Name;
-        Running;
-        SampleRate;
-        SamplesAcquired;
-        SamplesAvailable;
+        Name
+        Running
+        SampleRate
+        SamplesAcquired
+        SamplesAvailable
     end
     properties (Constant)
-        Type = 'Pointing Device';
+        Type = 'Pointing Device'
     end
     properties (Access = protected)
-        hwInfo;
-        AdaptorName;
-        DeviceID;
-        TaskID;
+        hwInfo
+        AdaptorName
+        DeviceID
+        TaskID
     end
     properties (Access = protected, Constant)
-        SubsystemType = 1;	% 1: AI, 2: AO, 3: DIO
+        SubsystemType = 1  % 1: AI, 2: AO, 3: DIO
     end
    
     methods (Access = protected, Static)
@@ -67,7 +67,7 @@ classdef pointingdevice < dynamicprops
             obj.TaskID = obj.taskid();
             mdqmex(53,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
             obj.hwInfo = about(obj);
-            obj.Name = [adaptor DeviceID '-PD'];
+            obj.Name = [adaptor DeviceID '-PointingDevice'];
         end
         function delete(obj)
             for m=1:length(obj)
@@ -97,6 +97,9 @@ classdef pointingdevice < dynamicprops
             end
         end
         
+        function marker_position = flushmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,1);
+        end
         function flushdata(obj,mode) % Since we don't do triggering in pointing device, mode doesn't matter.
             for m=1:length(obj)
                 mdqmex(72,obj(m).AdaptorName,obj(m).DeviceID,obj(m).SubsystemType,obj(m).TaskID,false);
@@ -140,16 +143,30 @@ classdef pointingdevice < dynamicprops
                 buttons = '1' == fliplr(dec2bin(data(:,3),obj.hwInfo.Buttons));
             end
         end
-        function marker_position = putmarker(obj)
-            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
+        function marker_position = frontmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,2);
         end
-        function [xy,buttons,timestamps,nsamps_from_marker] = getmarked(obj)
+        function [xy,buttons,timestamps,nsamps_from_marker] = peekfront(obj)
             if 1 < length(obj), error('OBJ must be a 1-by-1 pointing device object.'); end
-            [data,nsamps_from_marker] = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID);
+            [data,nsamps_from_marker] = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,true);
             if isempty(data)
                 xy = []; buttons = logical([]); timestamps = [];
             else
                 data = data';
+                xy = double(data(:,1:2));
+                buttons = '1' == fliplr(dec2bin(data(:,3),obj.hwInfo.Buttons));
+                timestamps = data(:,4);
+            end
+        end
+        function marker_position = backmarker(obj)
+            marker_position = mdqmex(77,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,3);
+        end
+        function [xy,buttons,timestamps] = getback(obj)
+            if 1 < length(obj), error('OBJ must be a 1-by-1 pointing device object.'); end
+            data = mdqmex(79,obj.AdaptorName,obj.DeviceID,obj.SubsystemType,obj.TaskID,false)';
+            if isempty(data)
+                xy = []; buttons = logical([]); timestamps = [];
+            else
                 xy = double(data(:,1:2));
                 buttons = '1' == fliplr(dec2bin(data(:,3),obj.hwInfo.Buttons));
                 timestamps = data(:,4);

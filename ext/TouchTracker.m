@@ -7,12 +7,9 @@ classdef TouchTracker < Tracker
     end
     properties (SetAccess = protected)
         XYData
-		ClickData
+        ClickData
         MouseData
         LastSamplePosition
-    end
-    properties (Access = protected)
-        DataSource
     end
     
     methods
@@ -21,11 +18,9 @@ classdef TouchTracker < Tracker
             if 4~=nargin, return, end
             
             MLConfig = varargin{1};
-            datasource = varargin{4};
-            if 0==datasource && ~MLConfig.DAQ.mouse_present, error('Enable Touch first!!!'); end
+            if 0==obj.DataSource && ~MLConfig.DAQ.mouse_present, error('Enable Touch first!!!'); end
 
             obj.Signal = 'Touch';
-            obj.DataSource = datasource;
             obj.TracerImage = MLConfig.TouchCursorImage;
             obj.TracerShape = MLConfig.TouchCursorShape;
             obj.TracerColor = MLConfig.TouchCursorColor;

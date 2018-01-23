@@ -1,7 +1,7 @@
 classdef Graphic < mladapter
     properties
-        EdgeColor = NaN(1,3)
-        FaceColor = NaN(1,3)
+        EdgeColor = [1 1 1]
+        FaceColor = [1 1 1]
         Size = [0 0]
         Position = [0 0]
     end
