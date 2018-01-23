@@ -10,7 +10,6 @@ MLConditions = MLConfig.MLConditions;
 DAQ = MLConfig.DAQ;
 Screen = MLConfig.Screen;
 
-TrialRecord = mltrialrecord(MLConfig);
 if isempty(MLConfig.UserPlotFunction), TrialRecord.TaskInfo.UserPlotFunction = ''; else TrialRecord.TaskInfo.UserPlotFunction = fileread(MLConfig.UserPlotFunction); end
 
 MLEditable = [];
@@ -43,7 +42,6 @@ uiPerformanceThisCond = zeros(10,1);
 exception1 = [];
 exception2 = [];
 try
-    init();
     create_tracers(Screen,MLConfig);
 
     % need to embed timining files before calling pause_menu() to make [v] work

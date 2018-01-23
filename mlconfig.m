@@ -84,7 +84,6 @@ classdef (ConstructOnLoad = true) mlconfig
     properties (Constant = true, Hidden = true)
         Ver = 1.0;
         DependentFields = {'Resolution','PixelsPerDegree','FormattedName'}
-        TransientFields = {'MLVersion','MLPath','MLConditions','DAQ','Screen','System','IOList'}
         DefaultNumberOfTrialsToRunInThisBlock = 1000;
         DefaultCountOnlyCorrectTrials = true;
     end

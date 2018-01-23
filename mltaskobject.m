@@ -5,7 +5,6 @@ classdef mltaskobject < matlab.mixin.Copyable
     end
     properties
         Status
-        Position
     end
     properties (SetAccess = protected)
         ScreenPosition

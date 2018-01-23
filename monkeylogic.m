@@ -1099,7 +1099,6 @@ init();
                     create(Screen,MLConfig);
                     if all_DAQ_accounted, savecfg(MLPath.ConfigurationFile); end  % ensure the existence of the configuration file
                     cd(MLPath.ExperimentDirectory);
-                    result = run_trial(MLConfig,datafile);
                     if isa(result,'mlconfig')  % MLConfig could be modified during the task, so save it again
                         MLConfig = result;
                         if all_DAQ_accounted, savecfg(MLPath.ConfigurationFile); end
@@ -1687,7 +1686,6 @@ init();
             set(hFig,'closerequestfcn','closereq');
             close(hFig);
         end
-        
         figsize = [fx fy fw fh];
         hFig = figure;
         set(hFig,'tag','mlmainmenu','numbertitle','off','name',sprintf('NIMH MonkeyLogic 2 (%s)',MLConfig.MLVersion),'menubar','none','position',figsize,'resize','off','color',figure_bgcolor);

@@ -81,8 +81,6 @@ null_ = NullTracker(MLConfig,TaskObject,EyeCal,SIMULATION_MODE);
         end
 
         if TrialRecord.CurrentTrialNumber < 2
-            param_.SceneStartTime = trialtime();
-            param_.SceneStartFrame = param_.FrameNum;
             ML_Tracker.init(param_);
             adapter.init(param_);
             DAQ.peekfront();
