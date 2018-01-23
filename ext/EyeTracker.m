@@ -14,6 +14,8 @@ classdef EyeTracker < Tracker
     
     methods
         function obj = EyeTracker(varargin)  % MLConfig, TaskObject, CalFun, datasource
+            
+            %creates the EyeTracker object from the superclass "Tracker"
             obj = obj@Tracker(varargin{:});
             if 4~=nargin, return, end
             

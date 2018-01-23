@@ -15,6 +15,20 @@ function monkeylogic()
 %   Dec 31, 2016    This file is renamed from 'mlmenu.m' to 'monkeylogic.m'
 %                   and completely re-written by Jaewon Hwang
 
+%%=========================================================================
+% Change log JMT LAB ======================================================
+%==========================================================================
+% December 1 2017: GD
+%   Added implementation of the TCP object and it's interface with MLConfig
+%
+%
+%==========================================================================
+%==========================================================================
+%==========================================================================
+
+
+%Loads default configuration and creates empty templates objects for DAQ,
+%Screen, System,.... 
 MLConfig = mlconfig;
 old_MLConfig = MLConfig;
 MLPath = MLConfig.MLPath;
@@ -22,6 +36,7 @@ MLConditions = MLConfig.MLConditions;
 DAQ = MLConfig.DAQ;
 Screen = MLConfig.Screen;
 System = MLConfig.System;
+TCP = MLConfig.TCP; %Dec_1_2017: TCP object instantiation 
 
 % temporary variables
 hFig = [];
@@ -905,9 +920,16 @@ init();
                     %are in the mldaq.m and mlscreen.m files respectively
                     create(DAQ,MLConfig);
                     create(Screen,MLConfig);
+                    
+                    %Now if we have a UE task (i.e. experiment name is:
+                    %UE_EXPERIMENTNAME)
+                    if strncmp(MLConfig.ExperimentName,'UE_', 3)
+                        create(TCP,MLConfig);
+                    end
+                    
                     if all_DAQ_accounted, savecfg(MLPath.ConfigurationFile); end  % ensure the existence of the configuration file
                     cd(MLPath.ExperimentDirectory);
-                    result = run_trial(MLConfig,datafile);
+                    result = run_trial(MLConfig,datafile);% HERE <========================================================================================================
                     if isa(result,'mlconfig')  % MLConfig could be modified during the task, so save it again
                         MLConfig = result;
                         if all_DAQ_accounted, savecfg(MLPath.ConfigurationFile); end
@@ -1307,6 +1329,7 @@ init();
     end
 
     function init()
+        %
         hFig = findobj('tag','mlmainmenu');
         if ~isempty(hFig), figure(hFig); return, end
         
@@ -1448,7 +1471,7 @@ init();
             set(hFig, 'closerequestfcn', 'closereq');
             close(hFig);
         end
-        
+         
         figsize = [fx fy fw fh];
         hFig = figure;
         set(hFig, 'tag','mlmainmenu', 'numbertitle','off', 'name',sprintf('NIMH MonkeyLogic 2 (%s)',MLConfig.MLVersion), 'menubar','none', 'position',figsize, 'resize','off', 'color',figure_bgcolor);
